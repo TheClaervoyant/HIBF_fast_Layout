@@ -2,7 +2,7 @@
 
 template <typename Hasher>
 void recursive_step(const std::vector<std::vector<std::uint64_t>>& sigs, lemon::ListGraph& graph, 
-    std::unordered_map<std::vector<size_t>,lemon::ListGraph::Node, Hasher>& labMap, 
+    std::vector<std::unordered_map<std::vector<size_t>,lemon::ListGraph::Node, Hasher>>& labMaps, 
     const std::vector<size_t>& comp, 
     const std::vector<std::pair<size_t,size_t>>& lvls, size_t lvl_){
 
@@ -18,12 +18,12 @@ void recursive_step(const std::vector<std::vector<std::uint64_t>>& sigs, lemon::
 
     std::vector<std::vector<size_t>> connect_comps_next_lvl = connected_components(tmp, tmp_Map);
 
-    lemon::ListGraph::Node parent = (labMap.find(comp))->second;
+    lemon::ListGraph::Node parent = (labMaps[lvl_ - 1].find(comp))->second;
     for(const std::vector<size_t>& sub_comp : connect_comps_next_lvl){
         lemon::ListGraph::Node child = graph.addNode();
-        labMap[sub_comp] = child;
+        labMaps[lvl_][sub_comp] = child;
         graph.addEdge(parent, child);
 
-        recursive_step(sigs, graph, labMap, sub_comp, lvls, lvl_ + 1);
+        recursive_step(sigs, graph, labMaps, sub_comp, lvls, lvl_ + 1);
     }
 }

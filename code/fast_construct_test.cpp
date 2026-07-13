@@ -254,10 +254,10 @@ void test_connected_components(){
 
 void test_recursive_step(){
   lemon::ListGraph graph1;
-  std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher> labMap1;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps1(1);
   std::vector<std::vector<size_t>> comp = {{1}};
   std::vector<size_t> singleton_comp = {1};
-  construct_graph(comp, graph1, labMap1);
+  construct_graph(comp, graph1, labMaps1[0]);
 
   // @test we would await, since this is a singleton, that there will be no new nodes or edges. That means, before and after should stay the same.
 
@@ -265,14 +265,15 @@ void test_recursive_step(){
   int edges_before = lemon::countEdges(graph1);
 
   std::vector<std::vector<std::uint64_t>> two_sigs = {{0,0,0,0}, {1,1,1,1}};
-  recursive_step(two_sigs, graph1, labMap1, singleton_comp, 2, 2);
+  std::vector<std::pair<size_t,size_t>> lvls1 = {{2,2}};
+  recursive_step(two_sigs, graph1, labMaps1, singleton_comp, lvls1, 1);
 
   bool stayed_same = (lemon::countNodes(graph1) == nodes_before) && (lemon::countEdges(graph1) == edges_before);
 
   lemon::ListGraph graph2;
-  std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher> labMap2;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps2(2);
   std::vector<std::vector<size_t>> comp2 = {{0,1,2}};
-  construct_graph(comp2, graph2, labMap2);
+  construct_graph(comp2, graph2, labMaps2[0]);
 
   std::vector<std::vector<std::uint64_t>> signatures = {
     {1,1,  2,2},
@@ -280,16 +281,20 @@ void test_recursive_step(){
     {5,5,  6,6}
   }; // Collision between bands 0 and 0 of comp 1 and 0, two stays singleton.
 
+  std::vector<std::pair<size_t,size_t>> lvls2 = {{2,2}, {2,2}};
   // @test this little example if it works in theory.
 
-  recursive_step(signatures, graph2, labMap2, comp2[0], 2, 2);
+  recursive_step(signatures, graph2, labMaps2, comp2[0], lvls2, 1);
 
   bool correct_nodes = (lemon::countNodes(graph2) == 3) && (lemon::countEdges(graph2) == 2);
+
+  bool no_unlabeled = (lemon::countNodes(graph2) == (int)(labMaps2[0].size() + labMaps2[1].size()));
 
 
   std::cout << "\n=== Test the recursive_step function ===\n";
   std::cout << "Instant stop after encountering a singleton: " << colored_bool(stayed_same) << "\n";
   std::cout << "Example fits the expectation: " << colored_bool(correct_nodes) << "\n";
+  std::cout << "No node without label: " << colored_bool(no_unlabeled) << "\n";
 }
 
 int main(){

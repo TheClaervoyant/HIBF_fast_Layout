@@ -129,7 +129,7 @@ std::vector<std::vector<size_t>> connected_components(lemon::ListGraph &graph, c
 // @param lvls : a pair, containing the tuple (bcount, bwidth) for each lvl
 // @param lvl_ : A global accumulator
 template <typename Hasher>
-void recursive_step(const std::vector<std::vector<std::uint64_t>> &sigs, lemon::ListGraph &graph, std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher> &labMap,
+void recursive_step(const std::vector<std::vector<std::uint64_t>> &sigs, lemon::ListGraph &graph, std::vector<std::unordered_map<std::vector<size_t>,lemon::ListGraph::Node, Hasher>>& labMaps,
                     const std::vector<size_t> &comp,
                     const std::vector<std::pair<size_t,size_t>>& lvls, size_t lvl_);
 #include "templates/fast_construct_recursive_step.tpp"
@@ -139,6 +139,6 @@ void recursive_step(const std::vector<std::vector<std::uint64_t>> &sigs, lemon::
 // @param lvls : A set of tuples (bcount, bwidth). Every tuple defines a level in the tree
 // @param graph : The graph upon which is build.
 template <typename Hasher>
-std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher> generate_all(const std::vector<std::vector<std::uint64_t>>& sigs, const std::vector<std::pair<size_t,size_t>>& lvls,
+std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>> generate_all(const std::vector<std::vector<std::uint64_t>>& sigs, const std::vector<std::pair<size_t,size_t>>& lvls,
                  lemon::ListGraph& graph);
 #include "templates/fast_construct_generate_all.tpp"

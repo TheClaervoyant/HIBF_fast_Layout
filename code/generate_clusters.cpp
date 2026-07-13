@@ -101,6 +101,35 @@ void printgraph(lemon::ListGraph& graph, std::unordered_map<std::vector<size_t>,
     dot.close();
 }
 
+template <typename Hasher>
+void printgraph(lemon::ListGraph& graph, std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, std::string filepath){
+    // Get the connected Components in order to colorize them later on.
+    lemon::ListGraph::NodeMap<int> compMap(graph);
+    int numComp = lemon::connectedComponents(graph, compMap);
+
+    // In Order to print, we invert the labMap
+    std::map<lemon::ListGraph::Node, std::vector<size_t>> nodeMap;
+    for(auto& labMap : labMaps) // labMap : unordered_map<vector, Node, Hasher>.
+        for(auto& [label, node] : labMap) nodeMap[node] = label;
+
+    // Potential colors, cycle around if there are more than 10 con.comps.
+    std::vector<std::string> colors = {
+        "red", "blue", "green", "orange", "purple", "cyan", "magenta", "yellow", "brown", "pink"
+    };
+
+    std::ofstream dot(filepath);
+    dot << "graph G {\n" << "  node [style = filled];\n";
+    for(lemon::ListGraph::NodeIt n(graph); n!= lemon::INVALID; ++n){ // Print every node and its label
+        std::string color = colors[compMap[n] % colors.size()]; // Get the color, wrap around if more than colors contained.
+        dot << "  " << graph.id(n) << " [label=\"" << printout(nodeMap[n]) << "\", color=\"" << color << "\"];\n";
+    }
+    for(lemon::ListGraph::EdgeIt e(graph); e!= lemon::INVALID; ++e){ // Print every edge and its nodes
+        dot << "  " << graph.id(graph.u(e)) << " -- " << graph.id(graph.v(e)) << ";\n";
+    }
+    dot << "}\n";
+    dot.close();
+}
+
 int main(int argc, char* argv[]){
     if(argc != 5){
         std::cerr << "Missing parameters: " << "Amount cluster + cluster size + vector_size + Similarity in cluster + Similarity berween clusters. \n";
@@ -116,12 +145,12 @@ int main(int argc, char* argv[]){
 
     lemon::ListGraph graph;
     
-    // Generate One permutation Hashes for each "sequence":
+    // Generate One Permutation Hashes for each "sequence":
     std::vector<std::vector<std::uint64_t>> oph_sigs = one_permutation_hash(rand_clusts, 8);
     
-    std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher> labMap = generate_all<standardHasher>(oph_sigs, lvls, graph);
+    std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher>> labMaps = generate_all<standardHasher>(oph_sigs, lvls, graph);
 
-    printgraph(graph, labMap, "../results/All_lvls_analyzed.dot");
+    printgraph(graph, labMaps, "../results/All_lvls_analyzed.dot");
 
     std::cout <<"Each level in one go can be seen in ../results/All_lvls_analyzed.dot. \n";
     return 0;
