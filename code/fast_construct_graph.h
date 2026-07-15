@@ -142,3 +142,13 @@ template <typename Hasher>
 std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>> generate_all(const std::vector<std::vector<std::uint64_t>>& sigs, const std::vector<std::pair<size_t,size_t>>& lvls,
                  lemon::ListGraph& graph);
 #include "templates/fast_construct_generate_all.tpp"
+
+
+// @brief For every sequence on each level, return via pointer its corresponding super cluster.
+// @param labMaps : For every level, this one safes the cluster labels generated
+//
+// @note since the labMaps are rather complete, pointers are alright, since we don't plan on changing the referenced labMaps entries.
+// @note only thing that can happen is adding new levels when splitting certain clusters. But this ADDS new elements, it does not change things referenced.
+template <typename Hasher>
+std::vector<std::unordered_map<size_t,const std::vector<size_t>*>> get_clusters(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps);
+#include "templates/fast_construct_get_clusters.tpp"

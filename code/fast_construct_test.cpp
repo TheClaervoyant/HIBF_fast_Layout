@@ -297,6 +297,44 @@ void test_recursive_step(){
   std::cout << "No node without label: " << colored_bool(no_unlabeled) << "\n";
 }
 
+void test_get_clusters(){
+  // @test when there is no concrete labMap given, assume there are no clusters Thus, the returned sequence-to-cluster Map should be empty as well.
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> emptyLabMaps;
+  std::vector<std::unordered_map<size_t,const std::vector<size_t>*>> empty_clusters = get_clusters(emptyLabMaps);
+
+  bool is_empty = empty_clusters.empty();
+
+  // @test a given circumstance.
+  
+  lemon::ListGraph graph1;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps1(2);
+
+  // Construct the first level.
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2}, {3}}), graph1, labMaps1[0]);
+
+  // Construct the second level. In this instance, the levels will not be connected, but that will not be important, as the function does not care about connectivity.
+  construct_graph(std::vector<std::vector<size_t>>({{0,1},{2}}), graph1, labMaps1[1]); //{3} will be excluded, since it was a singleton to begin with.
+
+  std::vector<std::unordered_map<size_t,const std::vector<size_t>*>> clusters = get_clusters(labMaps1);
+
+  bool fit_expectations = ( (clusters.size() == 2) && (clusters[0].size() == 4) && (clusters[1].size() == 3) ); // We expect two levels and every Sequence to be one element.
+
+  // @test when the expectations fit, we can use this to test other things, such as the identity of the clusters.
+
+  bool correct_pointer_lvl0 = ( (clusters[0][0] == clusters[0][1]) && (clusters[0][1] == clusters[0][2]) );  // Sequence 0, 1 and 2 were in the same cluster.
+  bool different_pointer_lvl0 = (clusters[0][0] != clusters[0][3]); // Sequence 3 was the singleton.
+
+  bool correct_cluster_seq0_lvl0 = (*(clusters[0][0]) == std::vector<size_t>({0,1,2}));
+  bool correct_cluster_seq0_lvl1 = (*(clusters[1][0]) == std::vector<size_t>({0,1}));
+
+  std::cout << "\n=== Test the get_clusters function ===\n";
+  std::cout << "No Nodes result in an empty cluster gathering: " << colored_bool(is_empty) << "\n";
+  std::cout << "The overall structure of the cluster gathering fits the expectations: " << colored_bool(fit_expectations) << "\n";
+  std::cout << "Same clustered have the same pointers: " << colored_bool(correct_pointer_lvl0) << "\n";
+  std::cout << "Different clustered sequences have different pointers: " << colored_bool(different_pointer_lvl0) << "\n";
+  std::cout << "Sequence 0 references to the correct cluster on Level 0: " << colored_bool(correct_cluster_seq0_lvl0) << "\n";
+  std::cout << "Sequence 0 references to the correct cluster on Level 1: " << colored_bool(correct_cluster_seq0_lvl1) << "\n";
+}
 int main(){
   test_construct_graph_tower();
   test_construct_graph();
@@ -305,4 +343,5 @@ int main(){
   test_connect_bands();
   test_connected_components();
   test_recursive_step();
+  test_get_clusters();
 }
