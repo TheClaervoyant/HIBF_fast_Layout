@@ -109,9 +109,22 @@ void printgraph(lemon::ListGraph& graph, std::vector<std::unordered_map<std::vec
 
     // In Order to print, we invert the labMap
     std::map<lemon::ListGraph::Node, std::vector<size_t>> nodeMap;
-    for(auto& labMap : labMaps) // labMap : unordered_map<vector, Node, Hasher>.
-        for(auto& [label, node] : labMap) nodeMap[node] = label;
 
+    size_t cluster_id = 0;
+    std::map<lemon::ListGraph::Node, size_t> node_to_id; // Used in Legend later on
+    std::vector<lemon::ListGraph::Node> nodes_ordered;
+    
+    for(auto& labMap : labMaps){ // labMap : unordered_map<vector, Node, Hasher>.
+        for(auto& [label, node] : labMap){
+            nodeMap[node] = label;
+
+            if(node_to_id.find(node) != node_to_id.end()) continue;
+
+            node_to_id[node] = cluster_id;
+            nodes_ordered.push_back(node);
+            cluster_id += 1;
+        } 
+    }
     // Potential colors, cycle around if there are more than 10 con.comps.
     std::vector<std::string> colors = {
         "red", "blue", "green", "orange", "purple", "cyan", "magenta", "yellow", "brown", "pink"
@@ -121,11 +134,28 @@ void printgraph(lemon::ListGraph& graph, std::vector<std::unordered_map<std::vec
     dot << "graph G {\n" << "  node [style = filled];\n";
     for(lemon::ListGraph::NodeIt n(graph); n!= lemon::INVALID; ++n){ // Print every node and its label
         std::string color = colors[compMap[n] % colors.size()]; // Get the color, wrap around if more than colors contained.
-        dot << "  " << graph.id(n) << " [label=\"" << printout(nodeMap[n]) << "\", color=\"" << color << "\"];\n";
+        const std::vector<size_t>& labs = nodeMap[n];
+        dot << "  " << graph.id(n) << " [label=\"M" << node_to_id[n] << " (" << labs.size() << ")\"" << ", color=\"" << color << "\"];\n";
     }
     for(lemon::ListGraph::EdgeIt e(graph); e!= lemon::INVALID; ++e){ // Print every edge and its nodes
         dot << "  " << graph.id(graph.u(e)) << " -- " << graph.id(graph.v(e)) << ";\n";
     }
+
+    // Print the legend as well
+    dot << " legend [shape = box, style = filled, fillcolor = lightyellow, label=\"";
+    for(auto n: nodes_ordered){
+        const std::vector<size_t>& labs = nodeMap[n];
+        dot << "M" << node_to_id[n] << " (" << labs.size() << "): ";
+        for(size_t seq = 0; seq < labs.size(); seq++){
+            dot << labs[seq];
+            if(seq + 1 < labs.size()) dot << ", ";
+        }
+        dot << "\\l";
+    }
+    dot << "\"];\n";
+
+    if(!nodes_ordered.empty()) dot << " " << graph.id(nodes_ordered.back()) << " -- legend [style = invis, minlen = 7]";
+
     dot << "}\n";
     dot.close();
 }
