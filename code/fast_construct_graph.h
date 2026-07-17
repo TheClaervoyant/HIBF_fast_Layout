@@ -6,6 +6,8 @@
 #include <tuple>
 #include <unordered_map>
 #include <utility>
+#include <unordered_set>
+#include <algorithm>
 
 // @brief Transform the given LableMap and the Graph based on the given bands and sequences.
 // @param  bands_, seqs_ : The number of bands and sequences used.
@@ -152,3 +154,14 @@ std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hash
 template <typename Hasher>
 std::vector<std::unordered_map<size_t,const std::vector<size_t>*>> get_clusters(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps);
 #include "templates/fast_construct_get_clusters.tpp"
+
+// @brief Given a number of bins and the higher bound of elements per bin, gather sequences, such that similar sequences are within the same bin and dissimilar sequences are in different bins.
+// @param labMaps : The clustering for the graph used.
+// @param level_clusters : For every level and sequence, a pointer to the corresponding cluster in the higher level is returned.
+// @param bins : the number of bins used
+// @param t_max : The maximum number of elements per bin.
+template <typename Hasher>
+std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps,
+                                        const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
+                                        const size_t bins, const size_t t_max);
+#include "templates/fast_construct_binning.tpp"
