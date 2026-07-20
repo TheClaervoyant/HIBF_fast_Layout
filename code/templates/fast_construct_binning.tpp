@@ -14,42 +14,56 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
     for(auto& [component, node] : labMaps[deepest_lvl]) candidates.push_back(&component);
 
     // Sort them now in ascending order; this enables us to easily get the smallest clusters.
-    std::sort(candidates.begin(),candidates.end(), [](const std::vector<size_t>* a, const std::vector<size_t>* b){return a->size() < b->size();});
+    std::sort(candidates.begin(),candidates.end(), [](const std::vector<size_t>* a, const std::vector<size_t>* b){
+        if(a->size() != b->size()) return a->size() < b->size();
+        return a->front() < b->front(); // Tie breaker to make binning deterministic.
+    });
 
-    std::unordered_set<const std::vector<size_t>*> used_clusters; // To check whether the mother cluster was already used
+    std::vector<std::unordered_set<const std::vector<size_t>*>> used_clusters_per_level(deepest_lvl + 1); // To check whether the mother cluster was already used on each level. 
+
     size_t bin = 0;
+
     // TODO: This version only goes up one level to check whether a cluster was already used, this could be changed to make the cluster check top down, such that two sequences come from very different clusters.
-    for(const std::vector<size_t>* cluster: candidates){
-        if(bin >= bins) break;
-        if(used_clusters.count(cluster)) continue; // If we used the elements supercluster once, skip.
+    for(size_t lvl = 0; lvl <= deepest_lvl && bin < bins; lvl++){
+        for(const std::vector<size_t>* cluster : candidates){
+            if(bin >= bins) break;
+    
+            size_t representative = cluster->front();
+            if(binned.count(representative)) continue; // Since we entered this representative already, we skip it, since we don't need it twice.
+    
+            auto it = level_clusters[lvl].find(representative);
+            if(it == level_clusters[lvl].end()) continue;
+            const std::vector<size_t>* super_cluster = it->second;
 
-        size_t representative = cluster->front();
-        if(binned.count(representative)) continue; // Since we entered this representative already, we skip it, since we don't need it twice.
+            if(used_clusters_per_level[lvl].count(super_cluster)) continue; // We used this supercluster already, but we want more diversity. So we skip this Cluster and thus, its representative.
 
-        res[bin].push_back(representative);
-        binned.insert(representative);
-        used_clusters.insert(cluster);
-        bin += 1;
+            res[bin].push_back(representative);
+            binned.insert(representative);
+
+            for(size_t lvl_ = 0; lvl_ <= deepest_lvl; lvl_++){
+                auto iterator = level_clusters[lvl_].find(representative);
+                if(iterator != level_clusters[lvl_].end()) used_clusters_per_level[lvl_].insert(iterator->second);
+            }
+
+            bin += 1;
+        }
     }
 
     for(size_t b = 0; b < bins; b++){
         if(res[b].empty()) continue; // Can't add similar sequences to an empty bin, since there is no representative.
+        if(res[b].size() >= t_max) continue; // We will not add elements to an already full bin.
         size_t repr = res[b][0];
 
         // We can now use this representative to go up one level and add every not already used sequence to the bin.
-        for(size_t lvl = deepest_lvl; lvl >= 0; lvl--){
-            if(res[b].size() >= t_max) continue; // We will not add elements to an already full bin.
+        auto it = level_clusters[deepest_lvl].find(repr);
+        if(it == level_clusters[deepest_lvl].end()) continue; // If, for some reason, the representative should not be found, use this as a guard.
+        const std::vector<size_t>& cluster = *(it->second);
 
-            auto it = level_clusters[deepest_lvl].find(repr);
-            if(it == level_clusters[deepest_lvl].end()) continue; // If, for some reason, the representative should not be found, use this as a guard.
-            const std::vector<size_t>& cluster = *(it->second);
-
-            for(size_t seq : cluster){
-                if(res[b].size() >= t_max) continue; // Will not add more than we already added.
-                if(binned.count(seq)) continue;
-                res[b].push_back(seq);
-                binned.insert(seq);
-            }
+        for(size_t seq : cluster){
+            if(res[b].size() >= t_max) continue; // Will not add more than we already added.
+            if(binned.count(seq)) continue;
+            res[b].push_back(seq);
+            binned.insert(seq);
         }
     }
 

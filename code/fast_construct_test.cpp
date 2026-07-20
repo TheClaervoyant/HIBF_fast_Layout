@@ -254,26 +254,9 @@ void test_connected_components(){
 
 void test_recursive_step(){
   lemon::ListGraph graph1;
-  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps1(1);
-  std::vector<std::vector<size_t>> comp = {{1}};
-  std::vector<size_t> singleton_comp = {1};
-  construct_graph(comp, graph1, labMaps1[0]);
-
-  // @test we would await, since this is a singleton, that there will be no new nodes or edges. That means, before and after should stay the same.
-
-  int nodes_before = lemon::countNodes(graph1);
-  int edges_before = lemon::countEdges(graph1);
-
-  std::vector<std::vector<std::uint64_t>> two_sigs = {{0,0,0,0}, {1,1,1,1}};
-  std::vector<std::pair<size_t,size_t>> lvls1 = {{2,2}};
-  recursive_step(two_sigs, graph1, labMaps1, singleton_comp, lvls1, 1);
-
-  bool stayed_same = (lemon::countNodes(graph1) == nodes_before) && (lemon::countEdges(graph1) == edges_before);
-
-  lemon::ListGraph graph2;
-  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps2(2);
-  std::vector<std::vector<size_t>> comp2 = {{0,1,2}};
-  construct_graph(comp2, graph2, labMaps2[0]);
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps1(2);
+  std::vector<std::vector<size_t>> comp1 = {{0,1,2}};
+  construct_graph(comp1, graph1, labMaps1[0]);
 
   std::vector<std::vector<std::uint64_t>> signatures = {
     {1,1,  2,2},
@@ -281,18 +264,17 @@ void test_recursive_step(){
     {5,5,  6,6}
   }; // Collision between bands 0 and 0 of comp 1 and 0, two stays singleton.
 
-  std::vector<std::pair<size_t,size_t>> lvls2 = {{2,2}, {2,2}};
+  std::vector<std::pair<size_t,size_t>> lvls1 = {{2,2}, {2,2}};
   // @test this little example if it works in theory.
 
-  recursive_step(signatures, graph2, labMaps2, comp2[0], lvls2, 1);
+  recursive_step(signatures, graph1, labMaps1, comp1[0], lvls1, 1);
 
-  bool correct_nodes = (lemon::countNodes(graph2) == 3) && (lemon::countEdges(graph2) == 2);
+  bool correct_nodes = (lemon::countNodes(graph1) == 3) && (lemon::countEdges(graph1) == 2);
 
-  bool no_unlabeled = (lemon::countNodes(graph2) == (int)(labMaps2[0].size() + labMaps2[1].size()));
+  bool no_unlabeled = (lemon::countNodes(graph1) == (int)(labMaps1[0].size() + labMaps1[1].size()));
 
 
   std::cout << "\n=== Test the recursive_step function ===\n";
-  std::cout << "Instant stop after encountering a singleton: " << colored_bool(stayed_same) << "\n";
   std::cout << "Example fits the expectation: " << colored_bool(correct_nodes) << "\n";
   std::cout << "No node without label: " << colored_bool(no_unlabeled) << "\n";
 }
@@ -335,6 +317,52 @@ void test_get_clusters(){
   std::cout << "Sequence 0 references to the correct cluster on Level 0: " << colored_bool(correct_cluster_seq0_lvl0) << "\n";
   std::cout << "Sequence 0 references to the correct cluster on Level 1: " << colored_bool(correct_cluster_seq0_lvl1) << "\n";
 }
+
+void test_binning(){
+  // @test it is not important how things look; when bins == 0, the resulting vector should be empty, as there can be no binning.
+  lemon::ListGraph graph0;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps0(2);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2}, {3}}), graph0, labMaps0[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1}, {2}, {3}}), graph0, labMaps0[1]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts0 = get_clusters(labMaps0);
+
+  std::vector<std::vector<size_t>> zero_bins = binning(labMaps0, clusts0, 0, 1);
+  bool no_bins = zero_bins.empty();
+
+  // @test Just a little example to see if it fits the expectations.
+  lemon::ListGraph graph1;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps1(2);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1}, {2,3,4}}), graph1, labMaps1[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0},{1}, {2,3}, {4}}), graph1, labMaps1[1]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
+
+  std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, 3, 1); 
+  std::vector<std::vector<size_t>> expected_bin_1 = {{0}, {4}, {1}}; // Since we have 3 bins and three singletons, we expect only them and in exact this order (0, 1 are from the same supercluster)
+  bool match_expectation_1 = (example_bin_1 == expected_bin_1);
+
+  std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, 4, 1); 
+  std::vector<std::vector<size_t>> expected_bin_2 = {{0}, {4}, {1}, {2}}; // Adding one more allows us to look at {2,3}, where we take the first element, 2
+  bool match_expectation_2 = (example_bin_2 == expected_bin_2);
+
+  // @test we want to check that no sequence gets binned multiple times.
+  std::vector<std::vector<size_t>> no_dup_bin = binning(labMaps1, clusts1, 2, 3);
+  std::unordered_map<size_t,size_t> occurence_count;
+  for(const std::vector<size_t>& bin : no_dup_bin)
+    for(size_t seq : bin)
+      occurence_count[seq] += 1;
+  
+  bool no_dups = true;
+  for(auto& [seq,count] : occurence_count){
+    if(count > 1) no_dups = false;
+  }
+
+  std::cout << "\n=== Test the binning function ===\n";
+  std::cout << "bins = 0 results in an empty binning: " << colored_bool(no_bins) << "\n";
+  std::cout << "First, Only Singletons will get clusters and diversity is top down: " << colored_bool(match_expectation_1) << "\n";
+  std::cout << "When given, the first element of a greater cluster is taken: " << colored_bool(match_expectation_2) << "\n";
+  std::cout << "No Sequence is binned multiple times: " << colored_bool(no_dups) << "\n";
+}
+
 int main(){
   test_construct_graph_tower();
   test_construct_graph();
@@ -344,4 +372,5 @@ int main(){
   test_connected_components();
   test_recursive_step();
   test_get_clusters();
+  test_binning();
 }

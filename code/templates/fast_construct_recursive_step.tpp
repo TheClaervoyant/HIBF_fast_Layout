@@ -6,7 +6,7 @@ void recursive_step(const std::vector<std::vector<std::uint64_t>>& sigs, lemon::
     const std::vector<size_t>& comp, 
     const std::vector<std::pair<size_t,size_t>>& lvls, size_t lvl_){
 
-    if(comp.size() == 1) return; // Can't work on a singleton.
+    //if(comp.size() == 1) return; // Can't work on a singleton. COMMENTED OUT DUE TO CONVENIENCE WHEN BINNING.
     if(lvl_ >= lvls.size()) return; // Can't do more than that
 
     auto [bcount, bwidth] = lvls[lvl_];
