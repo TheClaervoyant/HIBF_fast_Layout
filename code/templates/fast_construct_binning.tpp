@@ -3,6 +3,7 @@
 template <typename Hasher>
 std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters, const size_t bins, const size_t t_max){
     std::vector<std::vector<size_t>> res(bins);
+    std::vector<size_t> track_fill(bins, 0); // Used later on to track the amount of elements in each bin.
     std::unordered_set<size_t> binned; // Always check which sequences are already assigned to a bin.
 
     // For starters, we want to assign the smallest clusters into bins so we can use them as representatives.
@@ -23,7 +24,6 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
 
     size_t bin = 0;
 
-    // TODO: This version only goes up one level to check whether a cluster was already used, this could be changed to make the cluster check top down, such that two sequences come from very different clusters.
     for(size_t lvl = 0; lvl <= deepest_lvl && bin < bins; lvl++){
         for(const std::vector<size_t>* cluster : candidates){
             if(bin >= bins) break;
@@ -38,6 +38,7 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
             if(used_clusters_per_level[lvl].count(super_cluster)) continue; // We used this supercluster already, but we want more diversity. So we skip this Cluster and thus, its representative.
 
             res[bin].push_back(representative);
+            track_fill[bin] = 1;
             binned.insert(representative);
 
             for(size_t lvl_ = 0; lvl_ <= deepest_lvl; lvl_++){
@@ -49,9 +50,16 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
         }
     }
 
-    for(size_t b = 0; b < bins; b++){
-        if(res[b].empty()) continue; // Can't add similar sequences to an empty bin, since there is no representative.
-        if(res[b].size() >= t_max) continue; // We will not add elements to an already full bin.
+    // TODO: the primary focus here lies on filling every bucket. Change it, such that we fill rather bottom up from the tree; group more similar sequences together rather than being set on filling a bin.
+    std::queue<size_t> valid_bins; // Instead of iterating over every bin, we track which are valid.
+    for(size_t b =  0; b < bins; b++){
+        if(!res[b].empty() && track_fill[b] < t_max) valid_bins.push(b);
+    }
+
+    while(!valid_bins.empty()){
+        size_t b = valid_bins.front();
+        valid_bins.pop();
+
         size_t repr = res[b][0];
 
         // We can now use this representative to go up one level and add every not already used sequence to the bin.
@@ -60,23 +68,33 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
         const std::vector<size_t>& cluster = *(it->second);
 
         for(size_t seq : cluster){
-            if(res[b].size() >= t_max) continue; // Will not add more than we already added.
+            if(track_fill[b] >= t_max) continue; // Will not add more than we already added.
             if(binned.count(seq)) continue;
             res[b].push_back(seq);
             binned.insert(seq);
+            track_fill[b] += 1;
         }
     }
+    // TODO: We can't requeue here yet, since this would result in an endless loop. Implement an increasing level, such that always something new happens.
 
     // TODO: This goes naively and randomly enters its stuff. Maybe think of something smart instead of being the stupidest form of greedy algorithm.
+    std::queue<size_t> still_fillable;
+    for(size_t b = 0; b < bins; b++){
+        if(track_fill[b] < t_max) still_fillable.push(b);
+    }
+
     for(auto& [seq, _] : level_clusters[0]){
         if(binned.count(seq)) continue;
-        for(size_t b = 0; b < bins; b++){
-            if(res[b].size() < t_max){
-                res[b].push_back(seq);
-                binned.insert(seq);
-                break;
-            }
-        }
+
+        while(!still_fillable.empty() && track_fill[still_fillable.front()] >= t_max) still_fillable.pop(); // We filled these buckets already along the way. 
+        if(still_fillable.empty()) break; // Every bucket is full.
+
+        size_t b = still_fillable.front();
+        res[b].push_back(seq);
+        binned.insert(seq);
+        track_fill[b] += 1;
+
+        if(track_fill[b] >= t_max) still_fillable.pop(); // Remove it ASAP.
     }
     return res;
 }

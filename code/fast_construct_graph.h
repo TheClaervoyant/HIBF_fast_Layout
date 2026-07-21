@@ -8,6 +8,7 @@
 #include <utility>
 #include <unordered_set>
 #include <algorithm>
+#include <queue>
 
 // @brief Transform the given LableMap and the Graph based on the given bands and sequences.
 // @param  bands_, seqs_ : The number of bands and sequences used.
