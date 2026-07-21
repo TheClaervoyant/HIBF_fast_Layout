@@ -51,6 +51,7 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
     }
 
     // TODO: the primary focus here lies on filling every bucket. Change it, such that we fill rather bottom up from the tree; group more similar sequences together rather than being set on filling a bin.
+    std::vector<size_t> bin_lvls(bins, deepest_lvl); // We want to store the level each bin represents. This enables us to freely climb the tree upwards.
     std::queue<size_t> valid_bins; // Instead of iterating over every bin, we track which are valid.
     for(size_t b =  0; b < bins; b++){
         if(!res[b].empty() && track_fill[b] < t_max) valid_bins.push(b);
@@ -61,18 +62,30 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
         valid_bins.pop();
 
         size_t repr = res[b][0];
+        size_t curr_lvl = bin_lvls[b];
 
         // We can now use this representative to go up one level and add every not already used sequence to the bin.
-        auto it = level_clusters[deepest_lvl].find(repr);
-        if(it == level_clusters[deepest_lvl].end()) continue; // If, for some reason, the representative should not be found, use this as a guard.
+        auto it = level_clusters[curr_lvl].find(repr);
+        if(it == level_clusters[curr_lvl].end()){ // Maybe the representative can be found in a higher level, just to be safe.
+            if(curr_lvl > 0){
+                bin_lvls[b] -= 1;
+                valid_bins.push(b); // Enables a new itteration
+            }
+            continue;
+        } 
         const std::vector<size_t>& cluster = *(it->second);
 
         for(size_t seq : cluster){
-            if(track_fill[b] >= t_max) continue; // Will not add more than we already added.
+            if(track_fill[b] >= t_max) break; // Will not add more than we already added.
             if(binned.count(seq)) continue;
             res[b].push_back(seq);
             binned.insert(seq);
             track_fill[b] += 1;
+        }
+
+        if(track_fill[b] < t_max && curr_lvl > 0){
+            bin_lvls[b] -= 1;
+            valid_bins.push(b);
         }
     }
     // TODO: We can't requeue here yet, since this would result in an endless loop. Implement an increasing level, such that always something new happens.

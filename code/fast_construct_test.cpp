@@ -356,11 +356,26 @@ void test_binning(){
     if(count > 1) no_dups = false;
   }
 
+  // @test this test will check the "climbing" mechanism; when a bucket is not full, the bucket should be requeued and thus, elements from a level above can be entered.
+  lemon::ListGraph graph2;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps2(3);  // We need to test this on 3 levels
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4,5}}), graph2, labMaps2[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,4}, {2,3}, {1,5}}), graph2, labMaps2[1]);
+  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph2, labMaps2[2]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts2 = get_clusters(labMaps2);
+
+  std::vector<std::vector<size_t>> example_bin_3 = binning(labMaps2, clusts2, 1, 3); 
+  std::vector<std::vector<size_t>> expected_bin_3 = {{0,4,1}};
+
+  bool climb_mechanism = (example_bin_3 == expected_bin_3);
+
+
   std::cout << "\n=== Test the binning function ===\n";
   std::cout << "bins = 0 results in an empty binning: " << colored_bool(no_bins) << "\n";
-  std::cout << "First, Only Singletons will get clusters and diversity is top down: " << colored_bool(match_expectation_1) << "\n";
+  std::cout << "First, only singletons will get clusters and diversity is top down: " << colored_bool(match_expectation_1) << "\n";
   std::cout << "When given, the first element of a greater cluster is taken: " << colored_bool(match_expectation_2) << "\n";
   std::cout << "No Sequence is binned multiple times: " << colored_bool(no_dups) << "\n";
+  std::cout << "Climbing mechanism works: " << colored_bool(climb_mechanism) << "\n";
 }
 
 int main(){
