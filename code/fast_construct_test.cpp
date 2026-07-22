@@ -337,11 +337,11 @@ void test_binning(){
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
 
   std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, 3, 1); 
-  std::vector<std::vector<size_t>> expected_bin_1 = {{0}, {4}, {1}}; // Since we have 3 bins and three singletons, we expect only them and in exact this order (0, 1 are from the same supercluster)
+  std::vector<std::vector<size_t>> expected_bin_1 = {{4}, {0}, {1}}; // Since we have 3 bins and three singletons, we expect only them and in exact this order (0, 1 are from the same supercluster). But since has a greater supercluster, it is in the first itteration.
   bool match_expectation_1 = (example_bin_1 == expected_bin_1);
 
   std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, 4, 1); 
-  std::vector<std::vector<size_t>> expected_bin_2 = {{0}, {4}, {1}, {2}}; // Adding one more allows us to look at {2,3}, where we take the first element, 2
+  std::vector<std::vector<size_t>> expected_bin_2 = {{4}, {0}, {1}, {2}}; // Adding one more allows us to look at {2,3}, where we take the first element, 2
   bool match_expectation_2 = (example_bin_2 == expected_bin_2);
 
   // @test we want to check that no sequence gets binned multiple times.

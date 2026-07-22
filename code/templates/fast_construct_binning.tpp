@@ -10,13 +10,23 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
     // Since we also want them to be as distant as possible, we go into the deepest level and from there, add singletons and whatnot.
 
     size_t deepest_lvl = labMaps.size() - 1;
+    size_t par_lvl = (deepest_lvl > 0) ? deepest_lvl -1 : deepest_lvl; // Safeguard
 
     std::vector<const std::vector<size_t>*> candidates;
     for(auto& [component, node] : labMaps[deepest_lvl]) candidates.push_back(&component);
 
+    std::unordered_map<const std::vector<size_t>*, size_t> parent_size;
+    parent_size.reserve(candidates.size());
+    for(const std::vector<size_t>* cand: candidates){
+        auto it = level_clusters[par_lvl].find(cand->front());
+        parent_size[cand] = (it != level_clusters[par_lvl].end()) ? it->second->size() : cand->size(); // Save how big the corresponding super cluster is
+    }
     // Sort them now in ascending order; this enables us to easily get the smallest clusters.
-    std::sort(candidates.begin(),candidates.end(), [](const std::vector<size_t>* a, const std::vector<size_t>* b){
+    std::sort(candidates.begin(),candidates.end(), [&parent_size](const std::vector<size_t>* a, const std::vector<size_t>* b){
         if(a->size() != b->size()) return a->size() < b->size();
+        size_t size_a = parent_size[a];
+        size_t size_b = parent_size[b];
+        if(size_a != size_b) return size_a > size_b; // We want to prefer small clusters with a greater super cluster.
         return a->front() < b->front(); // Tie breaker to make binning deterministic.
     });
 
