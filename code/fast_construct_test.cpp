@@ -358,10 +358,11 @@ void test_binning(){
 
   // @test this test will check the "climbing" mechanism; when a bucket is not full, the bucket should be requeued and thus, elements from a level above can be entered.
   lemon::ListGraph graph2;
-  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps2(3);  // We need to test this on 3 levels
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps2(4);  // We need to test this on 4 levels
   construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4,5}}), graph2, labMaps2[0]);
-  construct_graph(std::vector<std::vector<size_t>>({{0,4}, {2,3}, {1,5}}), graph2, labMaps2[1]);
-  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph2, labMaps2[2]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4,5}}), graph2, labMaps2[1]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,4}, {2,3}, {1,5}}), graph2, labMaps2[2]);
+  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph2, labMaps2[3]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts2 = get_clusters(labMaps2);
 
   std::vector<std::vector<size_t>> example_bin_3 = binning(labMaps2, clusts2, 1, 3); 
