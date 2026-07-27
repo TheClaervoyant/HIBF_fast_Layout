@@ -178,7 +178,9 @@ int main(int argc, char* argv[]){
     lemon::ListGraph graph;
     
     // Generate One Permutation Hashes for each "sequence":
-    std::vector<std::vector<std::uint64_t>> oph_sigs = one_permutation_hash(rand_clusts, 8);
+    std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> sigs = one_permutation_fracmin_hash(rand_clusts, 8, 0.001);
+    std::vector<std::vector<std::uint64_t>> oph_sigs = sigs.first;
+    std::vector<std::vector<std::uint64_t>> fracmin_sigs = sigs.second;
     
     std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher>> labMaps = generate_all<standardHasher>(oph_sigs, lvls, graph);
 

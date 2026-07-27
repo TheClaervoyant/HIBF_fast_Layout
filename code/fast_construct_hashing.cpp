@@ -8,41 +8,76 @@
 
 std::uint64_t xxhash_wrap(std::uint64_t input){ return XXH64(&input, sizeof(input), 0); }
 
-std::vector<std::vector<std::uint64_t>> one_permutation_hash(const std::vector<std::vector<std::uint64_t>>& hashes, const std::uint8_t k, std::function<std::uint64_t(std::uint64_t)> hashFunc){
-  std::vector<std::vector<std::uint64_t>> res;
+std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> one_permutation_fracmin_hash(const std::vector<std::vector<std::uint64_t>>& hashes, const std::uint8_t k, const double s, std::function<std::uint64_t(std::uint64_t)> hashFunc){
+  std::vector<std::vector<std::uint64_t>> res_oph;
+  res_oph.reserve(hashes.size());
+  std::vector<std::vector<std::uint64_t>> res_fracmin;
+  res_fracmin.reserve(hashes.size());
 
-  for(std::vector<::uint64_t> hashes_ : hashes){
-    std::vector<std::uint64_t> tmp(std::pow(2,k), std::numeric_limits<std::uint64_t>::max());
+  for(const std::vector<std::uint64_t>& hashes_ : hashes){
+    std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
+    std::vector<std::uint64_t> tmp_oph(std::pow(2,k), max);
+    std::vector<std::uint64_t> tmp_fracmin;
+    std::uint64_t thresh = static_cast<std::uint64_t>(static_cast<double>(max*s));
     for(std::uint64_t hash : hashes_){
       std::uint64_t hash_ = hashFunc(hash);
+
+      // Fracmin Part
+      if(hash_ < thresh) tmp_fracmin.push_back(hash_);
+
+      // OPH Part
       std::uint64_t index = hash_ & ((1ULL << k) -1); //Extract the first k bits of the initial hash value.
       std::uint64_t val = hash_ >> k; // remove the k bits, they'd just be a bias since evry value in the bucket would ALWAYS have these bits same.
-      if(val < tmp[index]) tmp[index] = val;
+      if(val < tmp_oph[index]) tmp_oph[index] = val;
     }
-    res.push_back(tmp);
+    std::sort(tmp_fracmin.begin(), tmp_fracmin.end());
+
+    res_oph.push_back(tmp_oph);
+    res_fracmin.push_back(tmp_fracmin);
   }
-  return res;
+  return {std::move(res_oph), std::move(res_fracmin)};
 }
 
-std::vector<std::vector<std::uint64_t>> ophs(const std::filesystem::path& filepath, const std::uint8_t q, const std::uint8_t k, std::function<std::uint64_t(std::uint64_t)> hashFunc){
-  std::vector<std::vector<std::uint64_t>> res;
+std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> ophs_fmhs(const std::filesystem::path& filepath, const std::uint8_t q, const std::uint8_t k, const double s, std::function<std::uint64_t(std::uint64_t)> hashFunc){
+  std::vector<std::vector<std::uint64_t>> res_oph;
+  std::vector<std::vector<std::uint64_t>> res_fmh;
 
   auto fin = seqan3::sequence_file_input{filepath};
   auto qmer_view = seqan3::views::kmer_hash(seqan3::ungapped{q});
   
   for(auto & record : fin){
-    std::vector<std::uint64_t> tmp(std::pow(2,k), std::numeric_limits<std::uint64_t>::max());
+    std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
+    std::vector<std::uint64_t> tmp_oph(std::pow(2,k), max);
+    std::vector<std::uint64_t> tmp_fracmin;
+    std::uint64_t thresh = static_cast<std::uint64_t>(static_cast<double>(max*s));
+
     for(auto&& qgram : record.sequence() | qmer_view){
       std::uint64_t hash = hashFunc(qgram);
+
+      if(hash < thresh) tmp_fracmin.push_back(hash);
 
       std::uint8_t index = hash & ((1ULL << k) -1);
       std::uint64_t val = hash >> k; // remove the k bits, they'd just be a bias since every value in the bucket would ALWAYS have these bits same.
 
-      if(val < tmp[index]) tmp[index] = val;
+      if(val < tmp_oph[index]) tmp_oph[index] = val;
     }
-    res.push_back(tmp);  
+    std::sort(tmp_fracmin.begin(), tmp_fracmin.end());
+
+    res_fmh.push_back(tmp_fracmin);
+    res_oph.push_back(tmp_oph);  
   }
-  return res;
+  return {std::move(res_oph), std::move(res_fmh)};
+}
+
+size_t get_union_size(const std::vector<std::vector<std::uint64_t>>& sketches){
+  std::unordered_set<std::uint64_t> elems;
+  size_t tots = 0; // Used for reserving space
+  for(const std::vector<std::uint64_t>& sketch : sketches) tots += sketch.size();
+  elems.reserve(tots); // "Worst Case" every Element is unique.
+
+  for(const std::vector<std::uint64_t>& sketch : sketches) for(std::uint64_t elem : sketch) elems.insert(elem);
+
+  return elems.size();
 }
 
 // @note this function is kind of redacted, sind its entire functionality is now in connect_bands. With the advantage, that we dont have to store every band respective. 

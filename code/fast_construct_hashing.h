@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <functional>
 #include <filesystem>
+#include <utility>
+#include <algorithm>
+#include <unordered_set>
 #define XXH_INLINE_ALL
 #include "xxhash.h"
 
@@ -11,28 +14,35 @@
 // @param input : the integer to hash
 std::uint64_t xxhash_wrap(std::uint64_t input);
 
-// @brief Given a set of hashes, compute the one permutation hash of the given collection
+// @brief Given a set of hashes, compute the one permutation hash and the Fracmin hash of the given collection
 // @param hashes : the set of hashes to be hashed
-// @param k : the intervall the function is cut in.
+// @param k : the intervall the function is cut in (used for One Permutation hash).
+// @param s : The fraction used to compute the Fracmin Hash
 // @param hashFunc : the Hash Function to be used
 //
-// @note in the end, returns a vector of size 2^k.
+// @note in the end, returns a vector of size 2^k (OPH).
 // @note this function is rather for debugging purposes, when actually using stuff, refer to @func ophs
-std::vector<std::vector<std::uint64_t>> one_permutation_hash(const std::vector<std::vector<std::uint64_t>>& hashes,
-                                                const std::uint8_t k,
+// @note the first set of vectors is the OPH, the other one is the Fracmin.
+std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> one_permutation_fracmin_hash(const std::vector<std::vector<std::uint64_t>>& hashes,
+                                                const std::uint8_t k, const double s, 
                                                 std::function<std::uint64_t(std::uint64_t)> hashFunc = xxhash_wrap);
 
 // @brief Given a set of sequences, k and a hashfunction, compute the one permutation hash of the given sequences.
 // @param filepath : Path to the file containing the sequences to be hashed
 // @param q : the size of the Q-Grams applied to the given #include <cstdint>sequences
-// @param k : the Intervall the function is cut in.
+// @param k : the Intervall the function is cut in (Used in One Permutation Hash).
+// @param s: The fraction used to compute the Fracmin Hash
 // @param hashFunc : the Hash Function to be used.
 //
-// @note every vector inside of the returned one has a size of 2^k.
-std::vector<std::vector<std::uint64_t>> ophs(const std::filesystem::path& filepath,
-                                              const std::uint8_t q, const std::uint8_t k,
+// @note every vector inside of the returned one has a size of 2^k (OPH).
+// @note the first set of vectors is the OPH, the other one is the Fracmin.
+std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> ophs_fmhs(const std::filesystem::path& filepath,
+                                              const std::uint8_t q, const std::uint8_t k, const double s,
                                               std::function<std::uint64_t(std::uint64_t)> hashFunc = xxhash_wrap);
 
+// @brief Given a set of (sorted) Fracmin Sketches, compute the size of the union of those sketches,
+// @param sketches : The set of Fracmin Sketches.
+size_t get_union_size(const std::vector<std::vector<std::uint64_t>>& sketches);
 
 // @brief Given a set of One-Permutation Hashes, extract the wanted number of bands, given the bandwidth
 // @param hashes : The set of One-Permutation Hashes.
