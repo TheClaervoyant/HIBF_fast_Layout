@@ -337,11 +337,11 @@ void test_binning(){
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
 
   std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, 3, 1); 
-  std::vector<std::vector<size_t>> expected_bin_1 = {{4}, {0}, {1}}; // Since we have 3 bins and three singletons, we expect only them and in exact this order (0, 1 are from the same supercluster). But since has a greater supercluster, it is in the first itteration.
+  std::vector<std::vector<size_t>> expected_bin_1 = {{2}, {3}, {0}}; 
   bool match_expectation_1 = (example_bin_1 == expected_bin_1);
 
   std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, 4, 1); 
-  std::vector<std::vector<size_t>> expected_bin_2 = {{4}, {0}, {1}, {2}}; // Adding one more allows us to look at {2,3}, where we take the first element, 2
+  std::vector<std::vector<size_t>> expected_bin_2 = {{2}, {3}, {0}, {4}}; 
   bool match_expectation_2 = (example_bin_2 == expected_bin_2);
 
   // @test we want to check that no sequence gets binned multiple times.
@@ -385,13 +385,29 @@ void test_binning(){
 
   bool merge_mechanism = (example_bin_4 == expected_bin_4); 
 
+  // @test We want to test the splitting mechanism here.
+  lemon::ListGraph graph4;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps4(2);
+  
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4}}), graph4, labMaps4[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4}}), graph4, labMaps4[1]);
+
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts4 = get_clusters(labMaps4);
+
+  std::vector<std::vector<size_t>> example_bin_5 = binning(labMaps4, clusts4, 3, 2); 
+  std::vector<std::vector<size_t>> expected_bin_5 = {{0,3}, {1,4}, {2}};
+
+  bool splitting_mechanism = (example_bin_5 == expected_bin_5); 
+
+
   std::cout << "\n=== Test the binning function ===\n";
   std::cout << "bins = 0 results in an empty binning: " << colored_bool(no_bins) << "\n";
-  std::cout << "First, only singletons will get clusters and diversity is top down: " << colored_bool(match_expectation_1) << "\n";
-  std::cout << "When given, the first element of a greater cluster is taken: " << colored_bool(match_expectation_2) << "\n";
+  std::cout << "Seeding starts right after splitting and merging: " << colored_bool(match_expectation_1) << "\n";
+  std::cout << "After splitting and merging, diversity for seeding is top_down: " << colored_bool(match_expectation_2) << "\n";
   std::cout << "No Sequence is binned multiple times: " << colored_bool(no_dups) << "\n";
   std::cout << "Climbing mechanism works: " << colored_bool(climb_mechanism) << "\n";
   std::cout << "Merging mechanism works: " << colored_bool(merge_mechanism) << "\n";
+  std::cout << "Splitting mechanism works: " << colored_bool(splitting_mechanism) << "\n";
 }
 
 int main(){

@@ -38,27 +38,12 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
     /// ============================================ ///
 
 
-    /// @note this is all setup, such as sorting the highest and deepest lvl, saving parent sizes for the deepest lvl-
-    for(auto& [component, node] : labMaps[deepest_lvl]) candidates.push_back(&component);
+    /// @note this is all setup, such as sorting the highest level
     for(auto& [component, node] : labMaps[0]) top_clusters.push_back(&component);
 
     std::sort(top_clusters.begin(), top_clusters.end(), [](const std::vector<size_t>* a, const std::vector<size_t>* b){
         if(a->size() != b->size()) return a->size() < b->size();
         return a->front() < b->front();
-    });
-
-    parent_size.reserve(candidates.size());
-    for(const std::vector<size_t>* cand: candidates){
-        auto it = level_clusters[par_lvl].find(cand->front());
-        parent_size[cand] = (it != level_clusters[par_lvl].end()) ? it->second->size() : cand->size(); // Save how big the corresponding super cluster is
-    }
-    // Sort them now in ascending order; this enables us to easily get the smallest clusters.
-    std::sort(candidates.begin(),candidates.end(), [&parent_size](const std::vector<size_t>* a, const std::vector<size_t>* b){
-        if(a->size() != b->size()) return a->size() < b->size();
-        size_t size_a = parent_size[a];
-        size_t size_b = parent_size[b];
-        if(size_a != size_b) return size_a > size_b; // We want to prefer small clusters with a greater super cluster.
-        return a->front() < b->front(); // Tie breaker to make binning deterministic.
     });
 
 
@@ -96,13 +81,70 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
 
     }
 
-    
     /// ============================================ ///
+
+
+    /// @note We are splitting Clusters that are too big here. We can exactly determine by (remaining_elements + t_max - 1) / t_max how many bins this cluster needs.
+    while(bin < bins && !res[bin].empty()) bin += 1;
+
+    for(auto& [component, node] : labMaps[deepest_lvl]){
+        if(binned.count(component.front())) continue; // This cluster got already binned due to Merging.
+        
+        if(component.size() <= t_max){ // Normal component, just insert into candidates.
+            candidates.push_back(&component);
+            continue;
+        }
+
+        // component.size() > t_max -> Split
+        size_t k = (component.size() + t_max - 1)/t_max;
+        size_t index = 0;
+        for(size_t i = 0; i < k && bin < bins; i++){
+            while(index < component.size() && binned.count(component[index])) index += 1;
+            if(index >= component.size()) break;
+            size_t representative = component[index];
+
+            res[bin].push_back(representative);
+            track_fill[bin] += 1;
+            binned.insert(representative);
+            
+            for(size_t lvl_ = 0; lvl_ <= deepest_lvl; lvl_++){
+                auto it = level_clusters[lvl_].find(representative);
+                if(it != level_clusters[lvl_].end()){
+                    used_clusters_per_level[lvl_].insert(it->second);
+                    update_bin(lvl_, it->second, bin);
+                }
+            }
+
+            bin += 1;
+            index += 1;
+        }
+        candidates.push_back(&component);
+    }
+
+
+    /// ============================================ ///
+
+    // @note this is setup for the seeding algorithm
+    parent_size.reserve(candidates.size());
+    for(const std::vector<size_t>* cand: candidates){
+        auto it = level_clusters[par_lvl].find(cand->front());
+        parent_size[cand] = (it != level_clusters[par_lvl].end()) ? it->second->size() : cand->size(); // Save how big the corresponding super cluster is
+    }
+    // Sort them now in ascending order; this enables us to easily get the smallest clusters.
+    std::sort(candidates.begin(),candidates.end(), [&parent_size](const std::vector<size_t>* a, const std::vector<size_t>* b){
+        if(a->size() != b->size()) return a->size() < b->size();
+        size_t size_a = parent_size[a];
+        size_t size_b = parent_size[b];
+        if(size_a != size_b) return size_a > size_b; // We want to prefer small clusters with a greater super cluster.
+        return a->front() < b->front(); // Tie breaker to make binning deterministic.
+    });
+
+
+    /// =========================================== ///
 
     
     /// @note This is the original seeding Algorithm. We enter small clusters by first picking a representative (cluster.front). 
     /// The Seeding variety is top down - we first want representatives from every mother cluster, then every child cluster can contain one representative, etc.
-    while(bin < bins && !res[bin].empty()) bin += 1;
     for(size_t lvl = 0; lvl <= deepest_lvl && bin < bins; lvl++){
         for(const std::vector<size_t>* cluster : candidates){
             if(bin >= bins) break;
