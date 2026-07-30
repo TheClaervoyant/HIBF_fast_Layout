@@ -1,18 +1,14 @@
 #include "../fast_construct_graph.h"
 
 template <typename Hasher>
-std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters, const std::vector<std::vector<std::uint64_t>>& fracmin_sketches, const double s, const size_t bins, const size_t t_max){
-
+std::vector<std::vector<size_t>> binning_base(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters, const size_t bins, const size_t t_max){
     size_t deepest_lvl = labMaps.size() - 1;
     size_t par_lvl = (deepest_lvl > 0) ? deepest_lvl -1 : deepest_lvl; // Safeguard
     size_t bin = 0;
     size_t merge_bins = 0;
     
     std::vector<std::vector<size_t>> res(bins); 
-    if(bins == 0) return res;
-    
     std::vector<size_t> track_fill(bins, 0); // Used later on to track the amount of elements in each bin.
-    std::vector<std::unordered_set<std::uint64_t>> bin_sketches(bins); // We need to efficiently keep track of the growing fracmin sketch for every bin
     std::vector<const std::vector<size_t>*> candidates;
     std::vector<const std::vector<size_t>*> top_clusters;
     std::vector<size_t> bin_lvls(bins, deepest_lvl); // We want to store the level each bin represents. This enables us to freely climb the tree upwards.
@@ -20,7 +16,6 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
 
     std::unordered_set<size_t> binned; // Always check which sequences are already assigned to a bin.
     std::unordered_map<const std::vector<size_t>*, size_t> parent_size;
-    std::unordered_map<const std::vector<size_t>*, size_t> top_sizes;
 
     std::vector<std::unordered_set<const std::vector<size_t>*>> used_clusters_per_level(deepest_lvl + 1); // To check whether the mother cluster was already used on each level. 
     std::vector<std::unordered_map<const std::vector<size_t>*, size_t>> bin_for_cluster(deepest_lvl + 1); // We want to save, for every cluster, is there already an element in a bin and if yes - which?
@@ -29,7 +24,7 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
     std::queue<size_t> valid_bins; // Instead of iterating over every bin, we track which are valid.
     std::priority_queue<std::pair<size_t,size_t>, std::vector<std::pair<size_t,size_t>>, std::greater<std::pair<size_t,size_t>>> still_fillable; // For the last loop, check which bins are still fillable.
 
-    // @brief Given update the bin for a given cluster, if the cluster either doesn't exist or it is full.
+    // @brief gieven update the bin for a given cluster, if the cluster either doesn't exist or it is full.
     // @param lvl : The level on which the update occurs
     // @param cluster : The cluster to be updated
     // @param size_t : The potential new cluster
@@ -39,27 +34,6 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
 
     };
 
-    // @brief Insert the sequence into the desired bin and update trackfill and the corresponding bin sketch.
-    // @param seq : The Sequence ID (0,....n)
-    // @param b : The bin where the sequence will be inserted.
-    // @return true if the element was entered in the bin, false if not (overshoot).
-    auto try_insert_sequence = [&](size_t seq, size_t b){
-        std::unordered_set<std::uint64_t>& sketch = bin_sketches[b];
-        std::vector<std::uint64_t> new_elems;
-
-        for(std::uint64_t elem : fracmin_sketches[seq]) if(!sketch.count(elem)) new_elems.push_back(elem);
-
-        size_t potential_size = static_cast<size_t>(static_cast<double>(sketch.size() + new_elems.size())/s);
-        if(!res[b].empty() && potential_size > t_max) return false; // We don't enter it here, since it would overshoot the bin.
-
-        for(std::uint64_t new_elem : new_elems) sketch.insert(new_elem);
-        res[b].push_back(seq);
-        binned.insert(seq);
-
-        track_fill[b] = potential_size;
-        return true; // Managed to fill
-    };
-
 
     /// ============================================ ///
 
@@ -67,22 +41,9 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
     /// @note this is all setup, such as sorting the highest level
     for(auto& [component, node] : labMaps[0]) top_clusters.push_back(&component);
 
-    top_sizes.reserve(top_clusters.size());
-    for(const std::vector<size_t>* clust : top_clusters){
-        std::vector<const std::vector<std::uint64_t>*> subset;
-        subset.reserve(clust->size());
-        for(size_t seq : *clust) subset.push_back(&fracmin_sketches[seq]);
-
-        size_t union_size = get_union_size_ptr(subset);
-        top_sizes[clust] = static_cast<std::uint64_t>(static_cast<double>(union_size)/s);
-    }
-
-    std::sort(top_clusters.begin(), top_clusters.end(), [&top_sizes](const std::vector<size_t>* a, const std::vector<size_t>* b){
-        size_t size_a = top_sizes[a];
-        size_t size_b = top_sizes[b];
-
-        if(size_a != size_b) return size_a < size_b;
-        return a->front() < b->front(); // Deterministic Tie Breaker.
+    std::sort(top_clusters.begin(), top_clusters.end(), [](const std::vector<size_t>* a, const std::vector<size_t>* b){
+        if(a->size() != b->size()) return a->size() < b->size();
+        return a->front() < b->front();
     });
 
 
@@ -91,16 +52,22 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
 
     /// @note This part is the merging
     /// We sort the Top level in ascending Order and search for the BIGGEST Cluster to merge and work from "front to end" by adding every cluster into bins.
-    auto boundary = std::partition_point(top_clusters.begin(), top_clusters.end(), [&top_sizes, t_max](const std::vector<size_t>* c){return top_sizes[c] < t_max;}); // Get the biggest cluster to be merged
+    auto boundary = std::partition_point(top_clusters.begin(), top_clusters.end(), [t_max](const std::vector<size_t>* c){return c->size() < t_max;}); // Get the biggest cluster to be merged
 
     for(auto it = boundary; it != top_clusters.begin();){
         it = std::prev(it);
 
+        while(merge_bins < bins && track_fill[merge_bins] >= t_max) merge_bins+= 1; // Find a merge-bin that can hold items.
+        if(merge_bins >= bins) break;
         const std::vector<size_t>& cluster = **it;
         for(size_t merging : cluster){
-            if(binned.count(merging)) continue;
-            while(merge_bins < bins && !try_insert_sequence(merging, merge_bins)) merge_bins+= 1; // Find a merge-bin that can hold items.
+            while(merge_bins < bins && track_fill[merge_bins] >= t_max) merge_bins+= 1; // Find a merge-bin that can hold items.
             if(merge_bins >= bins) break;
+            if(binned.count(merging)) continue;
+
+            res[merge_bins].push_back(merging);
+            track_fill[merge_bins] += 1;
+            binned.insert(merging);
 
             used_clusters_per_level[0].insert(&cluster);
 
@@ -123,29 +90,33 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
     for(auto& [component, node] : labMaps[deepest_lvl]){
         if(binned.count(component.front())) continue; // This cluster got already binned due to Merging.
         
-        std::vector<const std::vector<std::uint64_t>*> subset;
-        subset.reserve(component.size());
-        for(size_t seq : component) subset.push_back(&fracmin_sketches[seq]);
-        size_t union_size = get_union_size_ptr(subset);
-        size_t estimator = static_cast<std::uint64_t>(static_cast<double>(union_size)/s);
-
-        if(estimator <= t_max){ // Normal component, just insert into candidates.
+        if(component.size() <= t_max){ // Normal component, just insert into candidates.
             candidates.push_back(&component);
             continue;
         }
 
-        // estimator > t_max -> Split
-        for(size_t seq : component){
-            while(bin < bins && !try_insert_sequence(seq,bin)) bin += 1;
-            if(bin >= bins) break;
+        // component.size() > t_max -> Split
+        size_t k = (component.size() + t_max - 1)/t_max;
+        size_t index = 0;
+        for(size_t i = 0; i < k && bin < bins; i++){
+            while(index < component.size() && binned.count(component[index])) index += 1;
+            if(index >= component.size()) break;
+            size_t representative = component[index];
 
+            res[bin].push_back(representative);
+            track_fill[bin] += 1;
+            binned.insert(representative);
+            
             for(size_t lvl_ = 0; lvl_ <= deepest_lvl; lvl_++){
-                auto it = level_clusters[lvl_].find(seq);
+                auto it = level_clusters[lvl_].find(representative);
                 if(it != level_clusters[lvl_].end()){
                     used_clusters_per_level[lvl_].insert(it->second);
                     update_bin(lvl_, it->second, bin);
                 }
             }
+
+            bin += 1;
+            index += 1;
         }
         candidates.push_back(&component);
     }
@@ -187,10 +158,9 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
 
             if(used_clusters_per_level[lvl].count(super_cluster)) continue; // We used this supercluster already, but we want more diversity. So we skip this Cluster and thus, its representative.
 
-            while(bin < bins && !res[bin].empty()) bin += 1;
-            if(bin >= bins) break;
-
-            try_insert_sequence(representative, bin);
+            res[bin].push_back(representative);
+            track_fill[bin] += 1;
+            binned.insert(representative);
 
             for(size_t lvl_ = 0; lvl_ <= deepest_lvl; lvl_++){
                 auto iterator = level_clusters[lvl_].find(representative);
@@ -240,7 +210,9 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
             if(track_fill[b] >= t_max) break; // Will not add more than we already added.
             size_t seq = cluster[start_it];
             if(binned.count(seq)) continue;
-            if(!try_insert_sequence(seq,b)) break; // That is too much
+            res[b].push_back(seq);
+            binned.insert(seq);
+            track_fill[b] += 1;
         }
 
         if(track_fill[b] < t_max && curr_lvl > 0){
@@ -268,58 +240,36 @@ std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<st
             auto it = level_clusters[lvl].find(seq);
             if(it == level_clusters[lvl].end()) continue;
             auto iterator = bin_for_cluster[lvl].find(it->second);
-            if(iterator == bin_for_cluster[lvl].end()) continue;
-            size_t b = iterator->second;
-            if(!try_insert_sequence(seq,b)) continue; // Maybe another level and its corresponding cluster.
+            if(iterator != bin_for_cluster[lvl].end() && track_fill[iterator->second] < t_max){
+                size_t b = iterator->second;
+                res[b].push_back(seq);
+                binned.insert(seq);
+                track_fill[b] += 1;
 
-            for(size_t lvl_ = 0; lvl_ <= deepest_lvl; lvl_++){
-                auto it_ = level_clusters[lvl_].find(seq);
-                if(it_ != level_clusters[lvl_].end()) update_bin(lvl_, it_->second, b);
-            }
-            entered = true;
-            break;
-        }
-        if(!entered){
-            std::vector<std::pair<size_t, size_t>> skipped; // We want to know, which Buckets didn't fit the sequence but still have place for others potentially
-
-            while(!still_fillable.empty()){
-                auto [fill, b] = still_fillable.top();
-                still_fillable.pop(); 
-                if(track_fill[b] >= t_max) continue;
-
-                if(try_insert_sequence(seq,b)){
-                    entered = true;
-                    for(size_t lvl_ = deepest_lvl; lvl_ > 0; lvl_--){
-                        auto it_ = level_clusters[lvl_].find(seq);
-        
-                        if(it_!= level_clusters[lvl_].end()) update_bin(lvl_, it_->second, b);
+                for(size_t lvl_ = 0; lvl_ <= deepest_lvl; lvl_++){
+                    auto it_ = level_clusters[lvl_].find(seq);
+                    if(it_ != level_clusters[lvl_].end()) update_bin(lvl_, it_->second, b);
                 }
-                if(track_fill[b] < t_max) still_fillable.push({track_fill[b],b});
+                entered = true;
                 break;
             }
-            skipped.push_back({track_fill[b], b}); // Couldn't enter the sequence in that bin, but it HAS place
-            } 
+        }
+        if(!entered){
+            while(!still_fillable.empty() && track_fill[still_fillable.top().second] >= t_max) still_fillable.pop(); // We filled these buckets already along the way. 
+            if(still_fillable.empty()) break; // Every bucket is full.
+            size_t b = still_fillable.top().second;
+            still_fillable.pop();
+            res[b].push_back(seq);
+            binned.insert(seq);
+            track_fill[b] += 1;
 
-            for(auto& s : skipped) still_fillable.push(s);
+            for(size_t lvl_ = deepest_lvl; lvl_ > 0; lvl_--){
+                auto it_ = level_clusters[lvl_].find(seq);
 
-            if(!entered){
-                // FINAL FINAL WAY. We will enter every sequence and when there really was no bin able to hold it, we'll just overshoot one bin, but greedily the least full one.
-                size_t best_b = 0;
-                size_t best_fill = track_fill[0];
-                for(size_t b = 1; b < bins; b++){if(track_fill[b] < best_fill){best_fill = track_fill[b]; best_b = b;}}
-    
-                std::unordered_set<std::uint64_t>& sketch = bin_sketches[best_b];
-                for(std::uint64_t elem : fracmin_sketches[seq]) sketch.insert(elem);
-                res[best_b].push_back(seq);
-                binned.insert(seq);
-                track_fill[best_b] = static_cast<size_t>(static_cast<double>(sketch.size())/s);
-                for(size_t lvl_ = deepest_lvl; lvl_ > 0; lvl_--){
-                    auto it_ = level_clusters[lvl_].find(seq);
-        
-                    if(it_!= level_clusters[lvl_].end()) update_bin(lvl_, it_->second, best_b);
-                }
-                if(track_fill[best_b] < t_max) still_fillable.push({track_fill[best_b], best_b});
+                if(it_!= level_clusters[lvl_].end()) update_bin(lvl_, it_->second, b);
             }
+
+            if(track_fill[b] < t_max) still_fillable.push({track_fill[b],b}); // Remove it ASAP.
         }
     }
 

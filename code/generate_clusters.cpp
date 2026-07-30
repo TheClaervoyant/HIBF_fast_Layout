@@ -162,34 +162,55 @@ void printgraph(lemon::ListGraph& graph, std::vector<std::unordered_map<std::vec
 
 int main(int argc, char* argv[]){
     if(argc != 7){
-        std::cerr << "Missing parameters: " << "Amount cluster + cluster size + vector_size + Similarity in cluster + Similarity berween clusters + bins used in binning + maximum amount of elements in bins (t_max). \n";
+        std::cerr << "Missing parameters: " << "Amount cluster + cluster size + vector_size + Similarity in cluster + Similarity berween clusters + bins used in binning + Fraction s for Fracmin. \n";
         return 1;
     }
 
+    
     size_t vec_size = std::stoul(argv[1]);
     std::vector<double> j_sims = parse_doubles(argv[2]);
     std::vector<size_t> counts = parse_sizes(argv[3]);
     std::vector<std::pair<size_t, size_t>> lvls = parse_lvls(argv[4]);
     size_t bins = std::stoul(argv[5]);
-    size_t t_max = std::stoul(argv[6]);
-
+    double s = std::stod(argv[6]);
+    
     std::vector<std::vector<std::uint64_t>> rand_clusts = get_any_cluster(vec_size, j_sims, counts, 0);
-
+    
     lemon::ListGraph graph;
     
     // Generate One Permutation Hashes for each "sequence":
-    std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> sigs = one_permutation_fracmin_hash(rand_clusts, 8, 0.001);
+    std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> sigs = one_permutation_fracmin_hash(rand_clusts, 8, s);
     std::vector<std::vector<std::uint64_t>> oph_sigs = sigs.first;
     std::vector<std::vector<std::uint64_t>> fracmin_sigs = sigs.second;
     
     std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher>> labMaps = generate_all<standardHasher>(oph_sigs, lvls, graph);
-
+    
     printgraph(graph, labMaps, "../results/All_lvls_analyzed.dot");
-
+    
     std::cout <<"Each level in one go can be seen in ../results/All_lvls_analyzed.dot. \n";
-
+    
     std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts = get_clusters(labMaps);
-    std::vector<std::vector<size_t>> buckets = binning(labMaps, clusts, bins, t_max);
+    
+    size_t union_size = get_union_size(fracmin_sigs);
+    size_t sum_size = 0;
+    for(std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
+    size_t t_max = (sum_size + union_size)/(2*bins*s);
+    std::vector<std::vector<size_t>> buckets = binning(labMaps, clusts, fracmin_sigs, s, bins, t_max);
+
+    auto get_pointers = [&](const std::vector<std::size_t>& bin){
+        std::vector<const std::vector<std::uint64_t>*> ptrs;
+        ptrs.reserve(bin.size());
+
+        for(size_t index : bin) ptrs.push_back(&fracmin_sigs[index]);
+
+        return ptrs;
+    };
+
+    std::cout << "t_max was : " << t_max << "\n";
+    for(size_t i = 0; i < buckets.size(); i++){
+        if(!buckets[i].empty()) std::cout << "Bucket : " << i << " Has fracmin Union size : " << get_union_size_ptr(get_pointers(buckets[i])) << " And estimated Union size of " << static_cast<size_t>(get_union_size_ptr(get_pointers(buckets[i]))/s) << "\n";
+    }
+
     lemon::ListGraph buckets_visualized;
     std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher> LabelMap;
     construct_graph(buckets, buckets_visualized, LabelMap);

@@ -162,7 +162,21 @@ std::vector<std::unordered_map<size_t,const std::vector<size_t>*>> get_clusters(
 // @param bins : the number of bins used
 // @param t_max : The maximum number of elements per bin.
 template <typename Hasher>
-std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps,
+std::vector<std::vector<size_t>> binning_base(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps,
                                         const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                         const size_t bins, const size_t t_max);
+#include "templates/fast_construct_binning_base.tpp"
+
+// @brief Given a number of bins and the higher bound of elements per bin, gather sequences, such that similar sequences are within the same bin and dissimilar sequences are in different bins.
+// @param labMaps : The clustering for the graph used.
+// @param level_clusters : For every level and sequence, a pointer to the corresponding cluster in the higher level is returned.
+// @param fracmin_sketches : The Set of Fracmin sketches corresponding to every sequence per ID
+// @param s : The Fraction determined to generate the Fracmin Sketch (used for estimating union size);
+// @param bins : the number of bins used
+// @param t_max : The maximum number of elements per bin.
+template <typename Hasher>
+std::vector<std::vector<size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+                                            const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
+                                            const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
+                                            const double s, const size_t bins, const size_t t_max);
 #include "templates/fast_construct_binning.tpp"

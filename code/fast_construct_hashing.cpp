@@ -80,6 +80,17 @@ size_t get_union_size(const std::vector<std::vector<std::uint64_t>>& sketches){
   return elems.size();
 }
 
+size_t get_union_size_ptr(const std::vector<const std::vector<std::uint64_t>*>& sketches){
+  std::unordered_set<std::uint64_t> elems;
+  size_t tots = 0; // Used for reserving space
+  for(const std::vector<std::uint64_t>* sketch : sketches) tots += sketch->size();
+  elems.reserve(tots); // "Worst Case" every Element is unique.
+
+  for(const std::vector<std::uint64_t>* sketch : sketches) for(std::uint64_t elem : *sketch) elems.insert(elem);
+
+  return elems.size();
+}
+
 // @note this function is kind of redacted, sind its entire functionality is now in connect_bands. With the advantage, that we dont have to store every band respective. 
 //  It is still used in the tests as the loop stays the same and is used in the connect_bands function.
 std::vector<std::vector<std::vector<std::uint64_t>>> extract_bands(const std::vector<std::vector<std::uint64_t>>& hashes, const size_t bwidth, const size_t bcount){

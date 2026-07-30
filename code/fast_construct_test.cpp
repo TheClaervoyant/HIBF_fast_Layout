@@ -318,7 +318,7 @@ void test_get_clusters(){
   std::cout << "Sequence 0 references to the correct cluster on Level 1: " << colored_bool(correct_cluster_seq0_lvl1) << "\n";
 }
 
-void test_binning(){
+void test_binning_base(){
   // @test it is not important how things look; when bins == 0, the resulting vector should be empty, as there can be no binning.
   lemon::ListGraph graph0;
   std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps0(2);
@@ -326,7 +326,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0,1}, {2}, {3}}), graph0, labMaps0[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts0 = get_clusters(labMaps0);
 
-  std::vector<std::vector<size_t>> zero_bins = binning(labMaps0, clusts0, 0, 1);
+  std::vector<std::vector<size_t>> zero_bins = binning_base(labMaps0, clusts0, 0, 1);
   bool no_bins = zero_bins.empty();
 
   // @test Just a little example to see if it fits the expectations.
@@ -336,16 +336,16 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0},{1}, {2,3}, {4}}), graph1, labMaps1[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
 
-  std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, 3, 1); 
+  std::vector<std::vector<size_t>> example_bin_1 = binning_base(labMaps1, clusts1, 3, 1); 
   std::vector<std::vector<size_t>> expected_bin_1 = {{2}, {3}, {0}}; 
   bool match_expectation_1 = (example_bin_1 == expected_bin_1);
 
-  std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, 4, 1); 
+  std::vector<std::vector<size_t>> example_bin_2 = binning_base(labMaps1, clusts1, 4, 1); 
   std::vector<std::vector<size_t>> expected_bin_2 = {{2}, {3}, {0}, {4}}; 
   bool match_expectation_2 = (example_bin_2 == expected_bin_2);
 
   // @test we want to check that no sequence gets binned multiple times.
-  std::vector<std::vector<size_t>> no_dup_bin = binning(labMaps1, clusts1, 2, 3);
+  std::vector<std::vector<size_t>> no_dup_bin = binning_base(labMaps1, clusts1, 2, 3);
   std::unordered_map<size_t,size_t> occurence_count;
   for(const std::vector<size_t>& bin : no_dup_bin)
     for(size_t seq : bin)
@@ -365,7 +365,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph2, labMaps2[3]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts2 = get_clusters(labMaps2);
 
-  std::vector<std::vector<size_t>> example_bin_3 = binning(labMaps2, clusts2, 1, 3); 
+  std::vector<std::vector<size_t>> example_bin_3 = binning_base(labMaps2, clusts2, 1, 3); 
   std::vector<std::vector<size_t>> expected_bin_3 = {{0,4,1}};
 
   bool climb_mechanism = (example_bin_3 == expected_bin_3);
@@ -380,7 +380,7 @@ void test_binning(){
 
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts3 = get_clusters(labMaps3);
 
-  std::vector<std::vector<size_t>> example_bin_4 = binning(labMaps3, clusts3, 2, 3); 
+  std::vector<std::vector<size_t>> example_bin_4 = binning_base(labMaps3, clusts3, 2, 3); 
   std::vector<std::vector<size_t>> expected_bin_4 = {{4,5,3}, {1,0,2}};
 
   bool merge_mechanism = (example_bin_4 == expected_bin_4); 
@@ -394,13 +394,106 @@ void test_binning(){
 
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts4 = get_clusters(labMaps4);
 
-  std::vector<std::vector<size_t>> example_bin_5 = binning(labMaps4, clusts4, 3, 2); 
+  std::vector<std::vector<size_t>> example_bin_5 = binning_base(labMaps4, clusts4, 3, 2); 
   std::vector<std::vector<size_t>> expected_bin_5 = {{0,3}, {1,4}, {2}};
 
   bool splitting_mechanism = (example_bin_5 == expected_bin_5); 
 
 
-  std::cout << "\n=== Test the binning function ===\n";
+  std::cout << "\n=== Test the binning function On Basecase without Fracmin===\n";
+  std::cout << "bins = 0 results in an empty binning: " << colored_bool(no_bins) << "\n";
+  std::cout << "Seeding starts right after splitting and merging: " << colored_bool(match_expectation_1) << "\n";
+  std::cout << "After splitting and merging, diversity for seeding is top_down: " << colored_bool(match_expectation_2) << "\n";
+  std::cout << "No Sequence is binned multiple times: " << colored_bool(no_dups) << "\n";
+  std::cout << "Climbing mechanism works: " << colored_bool(climb_mechanism) << "\n";
+  std::cout << "Merging mechanism works: " << colored_bool(merge_mechanism) << "\n";
+  std::cout << "Splitting mechanism works: " << colored_bool(splitting_mechanism) << "\n";
+}
+
+void test_binning(){
+  std::vector<std::vector<std::uint64_t>> fracmin_sketches = {{0}, {1}, {2}, {3}, {4}, {5}};
+  // @test it is not important how things look; when bins == 0, the resulting vector should be empty, as there can be no binning.
+  lemon::ListGraph graph0;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps0(2);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2}, {3}}), graph0, labMaps0[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1}, {2}, {3}}), graph0, labMaps0[1]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts0 = get_clusters(labMaps0);
+
+  std::vector<std::vector<size_t>> zero_bins = binning(labMaps0, clusts0,fracmin_sketches, 1, 0, 1);
+  bool no_bins = zero_bins.empty();
+
+  // @test Just a little example to see if it fits the expectations.
+  lemon::ListGraph graph1;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps1(2);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1}, {2,3,4}}), graph1, labMaps1[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0},{1}, {2,3}, {4}}), graph1, labMaps1[1]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
+
+  std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, fracmin_sketches, 1, 3, 1); 
+  std::vector<std::vector<size_t>> expected_bin_1 = {{2,1}, {3,4}, {0}}; 
+  bool match_expectation_1 = (example_bin_1 == expected_bin_1);
+
+  std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, fracmin_sketches, 1, 4, 1); 
+  std::vector<std::vector<size_t>> expected_bin_2 = {{2,1}, {3}, {0}, {4}}; 
+  bool match_expectation_2 = (example_bin_2 == expected_bin_2);
+
+  // @test we want to check that no sequence gets binned multiple times.
+  std::vector<std::vector<size_t>> no_dup_bin = binning(labMaps1, clusts1, fracmin_sketches, 1, 2, 3);
+  std::unordered_map<size_t,size_t> occurence_count;
+  for(const std::vector<size_t>& bin : no_dup_bin)
+    for(size_t seq : bin)
+      occurence_count[seq] += 1;
+  
+  bool no_dups = true;
+  for(auto& [seq,count] : occurence_count){
+    if(count > 1) no_dups = false;
+  }
+
+  // @test this test will check the "climbing" mechanism; when a bucket is not full, the bucket should be requeued and thus, elements from a level above can be entered.
+  lemon::ListGraph graph2;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps2(4);  // We need to test this on 4 levels
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4,5}}), graph2, labMaps2[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4,5}}), graph2, labMaps2[1]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,4}, {2,3}, {1,5}}), graph2, labMaps2[2]);
+  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph2, labMaps2[3]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts2 = get_clusters(labMaps2);
+
+  std::vector<std::vector<size_t>> example_bin_3 = binning(labMaps2, clusts2, fracmin_sketches, 1, 1, 3); 
+  std::vector<std::vector<size_t>> expected_bin_3 = {{0,4,1}}; // the other three elems are randomly added via Fallback.
+
+  bool climb_mechanism = (example_bin_3[0][0] == expected_bin_3[0][0] && example_bin_3[0][1] == expected_bin_3[0][1] && example_bin_3[0][2] == expected_bin_3[0][2]);
+  
+  // @test we want to specifically test if the merging mechanism works
+  lemon::ListGraph graph3;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps3(3);
+  
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2}, {3}, {4,5}}), graph3, labMaps3[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2}, {3}, {4,5}}), graph3, labMaps3[1]);
+  construct_graph(std::vector<std::vector<size_t>>({{1}, {0,2}, {3}, {4}, {5}}), graph3, labMaps3[2]);
+
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts3 = get_clusters(labMaps3);
+
+  std::vector<std::vector<size_t>> example_bin_4 = binning(labMaps3, clusts3, fracmin_sketches, 1, 2, 3); 
+  std::vector<std::vector<size_t>> expected_bin_4 = {{4,5,3}, {1,0,2}};
+
+  bool merge_mechanism = (example_bin_4 == expected_bin_4); 
+
+  // @test We want to test the splitting mechanism here.
+  lemon::ListGraph graph4;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps4(2);
+  
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4}}), graph4, labMaps4[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0,1,2,3,4}}), graph4, labMaps4[1]);
+
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts4 = get_clusters(labMaps4);
+
+  std::vector<std::vector<size_t>> example_bin_5 = binning(labMaps4, clusts4, fracmin_sketches, 1, 3, 2); 
+  std::vector<std::vector<size_t>> expected_bin_5 = {{0,1}, {2,3}, {4}};
+
+  bool splitting_mechanism = (example_bin_5 == expected_bin_5); 
+
+
+  std::cout << "\n=== Test the binning function with Fracmin===\n";
   std::cout << "bins = 0 results in an empty binning: " << colored_bool(no_bins) << "\n";
   std::cout << "Seeding starts right after splitting and merging: " << colored_bool(match_expectation_1) << "\n";
   std::cout << "After splitting and merging, diversity for seeding is top_down: " << colored_bool(match_expectation_2) << "\n";
@@ -419,5 +512,6 @@ int main(){
   test_connected_components();
   test_recursive_step();
   test_get_clusters();
+  test_binning_base();
   test_binning();
 }

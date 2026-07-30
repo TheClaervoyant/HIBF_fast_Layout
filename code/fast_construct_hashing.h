@@ -29,7 +29,7 @@ std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::
 
 // @brief Given a set of sequences, k and a hashfunction, compute the one permutation hash of the given sequences.
 // @param filepath : Path to the file containing the sequences to be hashed
-// @param q : the size of the Q-Grams applied to the given #include <cstdint>sequences
+// @param q : the size of the Q-Grams applied to the given sequences
 // @param k : the Intervall the function is cut in (Used in One Permutation Hash).
 // @param s: The fraction used to compute the Fracmin Hash
 // @param hashFunc : the Hash Function to be used.
@@ -43,6 +43,11 @@ std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::
 // @brief Given a set of (sorted) Fracmin Sketches, compute the size of the union of those sketches,
 // @param sketches : The set of Fracmin Sketches.
 size_t get_union_size(const std::vector<std::vector<std::uint64_t>>& sketches);
+
+// @brief Given a set of pointers to sketches, compute their Fracmin Union size.
+// @param sketches : The set of pointers pointing to corresponding Fracmin Sketches
+// @note Computation is nearly exact as @func get_union_size.
+size_t get_union_size_ptr(const std::vector<const std::vector<std::uint64_t>*>& sketches);
 
 // @brief Given a set of One-Permutation Hashes, extract the wanted number of bands, given the bandwidth
 // @param hashes : The set of One-Permutation Hashes.
