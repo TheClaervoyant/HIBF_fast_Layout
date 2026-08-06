@@ -1,5 +1,6 @@
 #include "fast_construct_graph.h"
 #include "fast_construct_hashing.h"
+#include "fast_construct_bin.h"
 #include <iostream>
 #include <lemon/core.h>
 #include <lemon/connectivity.h>
@@ -419,7 +420,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0,1}, {2}, {3}}), graph0, labMaps0[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts0 = get_clusters(labMaps0);
 
-  std::vector<std::vector<size_t>> zero_bins = binning(labMaps0, clusts0,fracmin_sketches, 1, 0, 1);
+  std::vector<std::vector<size_t>> zero_bins = binning(labMaps0, clusts0,fracmin_sketches, 1, 0, 1, 1.0).first;
   bool no_bins = zero_bins.empty();
 
   // @test Just a little example to see if it fits the expectations.
@@ -429,16 +430,17 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0},{1}, {2,3}, {4}}), graph1, labMaps1[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
 
-  std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, fracmin_sketches, 1, 3, 1); 
-  std::vector<std::vector<size_t>> expected_bin_1 = {{2,1}, {3,4}, {0}}; 
+  std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, fracmin_sketches, 1, 3, 2, 1.0).first; 
+  std::vector<std::vector<size_t>> expected_bin_1 = {{4,3}, {0,2}, {1}}; // The 3 and 2 are random; they could also be placed the other way around. 4, 0 and 1 MUST be like this though.
   bool match_expectation_1 = (example_bin_1 == expected_bin_1);
-
-  std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, fracmin_sketches, 1, 4, 1); 
-  std::vector<std::vector<size_t>> expected_bin_2 = {{2,1}, {3}, {0}, {4}}; 
+  
+  std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, fracmin_sketches, 1, 4, 2, 1.0).first; 
+  std::vector<std::vector<size_t>> expected_bin_2 = {{4}, {0}, {1}, {2,3}}; 
   bool match_expectation_2 = (example_bin_2 == expected_bin_2);
 
+
   // @test we want to check that no sequence gets binned multiple times.
-  std::vector<std::vector<size_t>> no_dup_bin = binning(labMaps1, clusts1, fracmin_sketches, 1, 2, 3);
+  std::vector<std::vector<size_t>> no_dup_bin = binning(labMaps1, clusts1, fracmin_sketches, 1, 2, 3, 1.0).first;
   std::unordered_map<size_t,size_t> occurence_count;
   for(const std::vector<size_t>& bin : no_dup_bin)
     for(size_t seq : bin)
@@ -458,7 +460,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph2, labMaps2[3]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts2 = get_clusters(labMaps2);
 
-  std::vector<std::vector<size_t>> example_bin_3 = binning(labMaps2, clusts2, fracmin_sketches, 1, 1, 3); 
+  std::vector<std::vector<size_t>> example_bin_3 = binning(labMaps2, clusts2, fracmin_sketches, 1, 1, 3, 1.0).first; 
   std::vector<std::vector<size_t>> expected_bin_3 = {{0,4,1}}; // the other three elems are randomly added via Fallback.
 
   bool climb_mechanism = (example_bin_3[0][0] == expected_bin_3[0][0] && example_bin_3[0][1] == expected_bin_3[0][1] && example_bin_3[0][2] == expected_bin_3[0][2]);
@@ -473,7 +475,7 @@ void test_binning(){
 
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts3 = get_clusters(labMaps3);
 
-  std::vector<std::vector<size_t>> example_bin_4 = binning(labMaps3, clusts3, fracmin_sketches, 1, 2, 3); 
+  std::vector<std::vector<size_t>> example_bin_4 = binning(labMaps3, clusts3, fracmin_sketches, 1, 2, 3, 1.0).first; 
   std::vector<std::vector<size_t>> expected_bin_4 = {{4,5,3}, {1,0,2}};
 
   bool merge_mechanism = (example_bin_4 == expected_bin_4); 
@@ -487,10 +489,42 @@ void test_binning(){
 
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts4 = get_clusters(labMaps4);
 
-  std::vector<std::vector<size_t>> example_bin_5 = binning(labMaps4, clusts4, fracmin_sketches, 1, 3, 2); 
+  std::vector<std::vector<size_t>> example_bin_5 = binning(labMaps4, clusts4, fracmin_sketches, 1, 3, 2, 1.0).first; 
   std::vector<std::vector<size_t>> expected_bin_5 = {{0,1}, {2,3}, {4}};
 
   bool splitting_mechanism = (example_bin_5 == expected_bin_5); 
+
+
+  // @test We want to test if a big sequence will be split. For that, we need only one sequence and a distinct signature for it.
+  std::vector<std::vector<std::uint64_t>> distinct_sketch = {{0,1,2,3}};
+  lemon::ListGraph graph5;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps5(1);
+  construct_graph(std::vector<std::vector<size_t>>({{0}}), graph5, labMaps5[0]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts5 = get_clusters(labMaps5);
+
+  std::vector<std::vector<size_t>> example_bin_6 = binning(labMaps5, clusts5, distinct_sketch, 1, 4, 1, 1.0).first; 
+  std::vector<std::vector<size_t>> expected_bin_6 = {{0},{0},{0},{0}};
+
+  bool split_singular = (example_bin_6 == expected_bin_6);
+
+  // @test We want to test whether the Split Bin and the Merge Bins will be isolated from following computations
+  std::vector<std::vector<std::uint64_t>> isolated_sketch = {{0,1,2,3}, {4}, {5}, {6}, {7}, {8}};
+
+  lemon::ListGraph graph6;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps6(2);
+  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3,4,5}}), graph6, labMaps6[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph6, labMaps6[1]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts6 = get_clusters(labMaps6);
+
+  std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> result = binning(labMaps6, clusts6, isolated_sketch, 1, 4, 2, 1.0);
+  std::vector<std::vector<size_t>> example_bin_7 = result.first; 
+  std::vector<std::vector<size_t>> expected_bin_7 = {{0},{0},{2,1},{3,5,4}}; // 5 and 4 can be switched around but it is important to note that the last element was entered with the final way and it did not choose the bin with only the 0.
+
+  bool results_isolated = (example_bin_7 == expected_bin_7);
+
+  // @test Given the example above, we want to check if the Merge Bin Range captures the {2,1} Bin.
+  std::pair<size_t,size_t> merge_range = result.second;
+  bool correct_range = (merge_range.first == 2 && merge_range.second == 3);
 
 
   std::cout << "\n=== Test the binning function with Fracmin===\n";
@@ -501,8 +535,98 @@ void test_binning(){
   std::cout << "Climbing mechanism works: " << colored_bool(climb_mechanism) << "\n";
   std::cout << "Merging mechanism works: " << colored_bool(merge_mechanism) << "\n";
   std::cout << "Splitting mechanism works: " << colored_bool(splitting_mechanism) << "\n";
+  std::cout << "A singular sequence can be split across multiple bins: " << colored_bool(split_singular) << "\n";
+  std::cout << "Merge Bins and Split Bins are isolated from others: " << colored_bool(results_isolated) << "\n";
+  std::cout << "Merge Range correctly captured: " << colored_bool(correct_range) << "\n";
 }
 
+void test_filter_LSH(){
+  // @test given graph6 of the previous test, test if filtering actually works
+
+  lemon::ListGraph graph;
+  std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps(2);
+  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3,4,5}}), graph, labMaps[0]);
+  construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph, labMaps[1]);
+  std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts = get_clusters(labMaps);
+
+  std::vector<size_t> relevant = {1,3,5};
+
+  LSH_Filtered<debugHasher> filtered = filter_LSH(labMaps, clusts, relevant);
+
+  bool labMaps_correct = (filtered.filtered_labMaps.size() == 2 && filtered.filtered_labMaps[0].size() == 2 && filtered.filtered_labMaps[1].size() == 3
+                          && filtered.filtered_labMaps[0].count(std::vector<size_t>({1})) && filtered.filtered_labMaps[0].count(std::vector<size_t>({3,5}))
+                          && filtered.filtered_labMaps[1].count(std::vector<size_t>({1})) && filtered.filtered_labMaps[1].count(std::vector<size_t>({3})) && filtered.filtered_labMaps[1].count(std::vector<size_t>({5})));
+  
+  bool level_clusters_correct = (filtered.filtered_level_clusters.size() == 2 && filtered.filtered_level_clusters[0].size() == 3 && filtered.filtered_level_clusters[1].size() == 3
+                                && filtered.filtered_level_clusters[0].count(1) && filtered.filtered_level_clusters[0].count(3) && filtered.filtered_level_clusters[0].count(5)
+                                && filtered.filtered_level_clusters[1].count(1) && filtered.filtered_level_clusters[1].count(3) && filtered.filtered_level_clusters[1].count(5));
+  
+  bool correct_clusters = (*filtered.filtered_level_clusters[0].at(1) == std::vector<size_t>({1}) && *filtered.filtered_level_clusters[0].at(3) == std::vector<size_t>({3,5}) && *filtered.filtered_level_clusters[0].at(5) == std::vector<size_t>({3,5})
+                          && *filtered.filtered_level_clusters[1].at(1) == std::vector<size_t>({1}) && *filtered.filtered_level_clusters[1].at(3) == std::vector<size_t>({3}) && *filtered.filtered_level_clusters[1].at(5) == std::vector<size_t>({5}));
+
+  bool shared_ptr = (filtered.filtered_level_clusters[0].at(3) == filtered.filtered_level_clusters[0].at(5));
+
+  bool storage_correct = (filtered.filtered_cluster_storage.size() == 2 && filtered.filtered_cluster_storage[0].size() == 2 && filtered.filtered_cluster_storage[1].size() == 3);
+
+  // @test when we say that no sequence is relevant, everything should be empty.
+
+  std::vector<size_t> empty_relevant = {};
+
+  LSH_Filtered<debugHasher> empty_filtered = filter_LSH(labMaps, clusts, empty_relevant);
+
+  bool labMap_empty = true;
+  bool level_clusters_empty = true;
+  bool storage_empty = true;
+
+  for(size_t lvl = 0; lvl < empty_filtered.filtered_labMaps.size(); lvl++) if(!empty_filtered.filtered_labMaps[lvl].empty()) labMap_empty = false;
+  for(size_t lvl = 0; lvl < empty_filtered.filtered_level_clusters.size(); lvl++) if(!empty_filtered.filtered_level_clusters[lvl].empty()) level_clusters_empty= false;
+  for(size_t lvl = 0; lvl < empty_filtered.filtered_cluster_storage.size(); lvl++) if(!empty_filtered.filtered_cluster_storage[lvl].empty()) storage_correct= false;
+
+  bool all_empty = labMap_empty && level_clusters_empty && storage_empty;
+
+  // @test assuming that every sequence is relevant, there should not be a notable change.
+
+  std::vector<size_t> all_relevant = {0,1,2,3,4,5};
+
+  LSH_Filtered<debugHasher> all_filtered = filter_LSH(labMaps, clusts, all_relevant);
+
+  bool all_labMaps_unchanged= true;
+
+  if(all_filtered.filtered_labMaps.size() != labMaps.size()){all_labMaps_unchanged = false;}
+  else{
+    for(size_t lvl = 0; lvl < labMaps.size(); lvl++){
+      if(all_filtered.filtered_labMaps[lvl].size() != labMaps[lvl].size()) {all_labMaps_unchanged = false; break;}
+      for(const auto& [cluster, node] : labMaps[lvl]){
+        if(!all_filtered.filtered_labMaps[lvl].count(cluster)){all_labMaps_unchanged = false; break;}
+      }
+    }
+  }
+
+  bool all_level_clusters_unchanged= true;
+
+  if(all_filtered.filtered_level_clusters.size() != clusts.size()){all_level_clusters_unchanged = false;}
+  else{
+    for(size_t lvl = 0; lvl < clusts.size(); lvl++){
+      if(all_filtered.filtered_level_clusters[lvl].size() != clusts[lvl].size()) {all_level_clusters_unchanged = false; break;}
+      for(const auto& [seq, cluster] : clusts[lvl]){
+        auto it = all_filtered.filtered_level_clusters[lvl].find(seq);
+        if(it == all_filtered.filtered_level_clusters[lvl].end()){all_level_clusters_unchanged = false; break;}
+        if(*(it->second) != *cluster){all_level_clusters_unchanged = false; break;}
+      }
+    }
+  }
+
+  bool no_change = all_level_clusters_unchanged && all_labMaps_unchanged;
+
+  std::cout << "\n=== Test the filter_LSH function ===\n";
+  std::cout << "LabMap got filtered correctly: " << colored_bool(labMaps_correct) << "\n";
+  std::cout << "Level_Clusters got filtered correctly: " << colored_bool(level_clusters_correct) << "\n";
+  std::cout << "The clusters in level_clusters are correct: " << colored_bool(correct_clusters) << "\n";
+  std::cout << "The Pointer on the highest level is shared between 3 and 5: " << colored_bool(shared_ptr) << "\n";
+  std::cout << "The Storage is correct: " << colored_bool(storage_correct) << "\n";
+  std::cout << "When no sequence is relevant, everything is empty: " << colored_bool(all_empty) << "\n";
+  std::cout << "When every sequence is relevant, no change is notable: " << colored_bool(no_change) << "\n";
+}
 int main(){
   test_construct_graph_tower();
   test_construct_graph();
@@ -514,4 +638,5 @@ int main(){
   test_get_clusters();
   test_binning_base();
   test_binning();
+  test_filter_LSH();
 }

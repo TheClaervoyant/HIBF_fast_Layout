@@ -1,9 +1,11 @@
 #include "fast_construct_graph.h"
 #include "test_clustering.h"
+#include "fast_construct_bin.h"
 #include "fast_construct_hashing.h"
 #include <lemon/connectivity.h>
 #include <fstream>
 #include <iostream>
+#include <filesystem>
 
 // Helper Function to parse the set of doubles
 std::vector<double> parse_doubles(const std::string& s){
@@ -195,7 +197,7 @@ int main(int argc, char* argv[]){
     size_t sum_size = 0;
     for(std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
     size_t t_max = (sum_size + union_size)/(2*bins*s);
-    std::vector<std::vector<size_t>> buckets = binning(labMaps, clusts, fracmin_sigs, s, bins, t_max);
+    std::vector<std::vector<size_t>> buckets = binning(labMaps, clusts, fracmin_sigs, s, bins, t_max).first;
 
     auto get_pointers = [&](const std::vector<std::size_t>& bin){
         std::vector<const std::vector<std::uint64_t>*> ptrs;
@@ -210,7 +212,7 @@ int main(int argc, char* argv[]){
     for(size_t i = 0; i < buckets.size(); i++){
         if(!buckets[i].empty()) std::cout << "Bucket : " << i << " Has fracmin Union size : " << get_union_size_ptr(get_pointers(buckets[i])) << " And estimated Union size of " << static_cast<size_t>(get_union_size_ptr(get_pointers(buckets[i]))/s) << "\n";
     }
-
+    
     lemon::ListGraph buckets_visualized;
     std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher> LabelMap;
     construct_graph(buckets, buckets_visualized, LabelMap);
@@ -218,6 +220,107 @@ int main(int argc, char* argv[]){
     printgraph(buckets_visualized, LabelMap, "../results/Buckets_binned.dot");
 
     std::cout <<"The resulting binning can be seen in ../results/Buckets_binned.dot. \n";
+
+
+
+
+
+    using IBF = std::vector<std::vector<size_t>>;
+    std::vector<std::vector<IBF>> hibf_levels; // We save every single level here.
+    std::vector<std::vector<std::pair<size_t,size_t>>> merge_ranges; // In order to reconstruct, we need to know the Merge ranges for every IBF
+    const size_t max_level = 3;
+
+    auto get_sub_t_max = [&](const std::vector<size_t>& seqs, size_t sub_bins){
+        std::vector<const std::vector<std::uint64_t>*> ptrs;
+        ptrs.reserve(seqs.size());
+        for(size_t seq : seqs) ptrs.push_back(&fracmin_sigs[seq]);
+
+        size_t union_size = get_union_size_ptr(ptrs);
+        size_t sum = 0;
+        for(size_t seq : seqs) sum += fracmin_sigs[seq].size();
+
+        return (sum + union_size)/(2*sub_bins*s);
+    };
+
+    auto get_sub_bins = [&](size_t N){
+        if(N == 0) return size_t{0};
+        double raw = std::sqrt(static_cast<double>(N));
+        size_t rounded = static_cast<size_t>(std::ceil(raw/64.0))*64; // round to nearest multiple of 64
+        if (rounded == 0) rounded = 64;
+        return std::min(rounded, static_cast<size_t>(2000));
+    };
+
+    std::vector<std::uint64_t> big_sig(1000000);
+    std::iota(big_sig.begin(),big_sig.end(),1000000);
+    fracmin_sigs.push_back(big_sig);
+    oph_sigs.push_back(std::vector<std::uint64_t>(256,1));
+
+    lemon::ListGraph big_graph;
+    auto big_labMaps = generate_all<standardHasher>(oph_sigs, lvls, big_graph);
+    auto big_clusts = get_clusters(big_labMaps);
+
+    union_size = get_union_size(fracmin_sigs);
+    sum_size = 0;
+    for(std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
+    t_max = (sum_size + union_size)/(2*bins*s);
+    std::cout << "\n t_max here is: " << t_max << "\n";
+
+    auto root = binning(big_labMaps, big_clusts, fracmin_sigs, s, bins, t_max);
+    hibf_levels.push_back({root.first});
+    merge_ranges.push_back({root.second});
+
+    for(size_t lvl = 0; lvl + 1 < max_level; lvl++){
+        std::vector<IBF> next_lvl;
+        std::vector<std::pair<size_t,size_t>> next_ranges;
+
+        for(size_t ibf_index = 0; ibf_index < hibf_levels[lvl].size(); ibf_index++){
+            const IBF& ibf = hibf_levels[lvl][ibf_index];
+            auto [start, end] = merge_ranges[lvl][ibf_index];
+
+            for(size_t b = start; b < end; b++){
+                if(ibf[b].empty()) continue; // can't do stuff on an empty IBF.
+
+                const std::vector<size_t>& sub_seqs = ibf[b];
+                size_t sub_bins = get_sub_bins(sub_seqs.size());
+                size_t sub_t_max = get_sub_t_max(sub_seqs, sub_bins);
+
+                auto child = binning_given_seqs(big_labMaps, big_clusts, fracmin_sigs, sub_seqs, s, sub_bins, sub_t_max);
+                next_lvl.push_back(std::move(child.first));
+                next_ranges.push_back(child.second);
+
+            }
+        }
+        if(next_lvl.empty()) break;
+        hibf_levels.push_back(std::move(next_lvl));
+        merge_ranges.push_back(std::move(next_ranges));
+    }
+
+    auto print_hibf = [&](const std::vector<std::vector<IBF>>& hibf_levels_){
+        std::filesystem::path root_dir = "../results/HIBF";
+        std::filesystem::create_directories(root_dir);
+
+        lemon::ListGraph g;
+        std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher> label_map;
+        construct_graph(hibf_levels_[0][0], g, label_map);
+        printgraph(g, label_map, (root_dir / "root_IBF.dot").string());
+
+        for(size_t lvl = 1; lvl < hibf_levels.size(); lvl++){
+            std::filesystem::path lvl_dir = root_dir / ("lvl" + std::to_string(lvl));
+            std::filesystem::create_directories(lvl_dir);
+
+            for(size_t index = 0; index < hibf_levels_[lvl].size(); index++){
+                lemon::ListGraph g;
+                std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher> label_map;
+                construct_graph(hibf_levels_[lvl][index], g, label_map);
+
+                std::string filename = "IBF." + std::to_string(lvl) + "." + std::to_string(index) + ".dot";
+                printgraph(g, label_map, (lvl_dir / filename).string());
+
+            }
+        }
+    };
+
+    print_hibf(hibf_levels);
 
     return 0;
 }
