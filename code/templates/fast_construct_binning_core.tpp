@@ -1,7 +1,7 @@
 #include "../fast_construct_graph.h"
 
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const double s, const size_t bins, const size_t t_max, const double f){
@@ -10,9 +10,10 @@ std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning_co
     size_t par_lvl = (deepest_lvl > 0) ? deepest_lvl -1 : deepest_lvl; // Safeguard
     size_t bin = 0;
     size_t merge_bins = 0;
+    size_t split_bins = 0;
 
     std::vector<std::vector<size_t>> res(bins); 
-    if(bins == 0) return {res, {0,0}};
+    if(bins == 0) return {res, {0,0,0}};
 
     std::vector<size_t> track_fill(bins, 0); // Used later on to track the amount of elements in each bin.
     std::vector<std::unordered_set<std::uint64_t>> bin_sketches(bins); // We need to efficiently keep track of the growing fracmin sketch for every bin
@@ -165,15 +166,16 @@ std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning_co
 
     for(auto& [component, node] : labMaps[0]){
         for(size_t seq : component){
-            if(fracmin_sketches[seq].size() >= t_max){
-                size_t split_bins = static_cast<size_t>(std::ceil(static_cast<double>(fracmin_sketches[seq].size())/(f * static_cast<double>(t_max))));
+            if(fracmin_sketches[seq].size() > t_max){
+                split_bins += 1;
+                size_t split_bins_ = static_cast<size_t>(std::ceil(static_cast<double>(fracmin_sketches[seq].size())/(f * static_cast<double>(t_max))));
                 size_t already_split = 0;
-                split_bins = (split_bins > bins - bin) ? (bins - bin) : split_bins;
+                split_bins_ = (split_bins_ > bins - bin) ? (bins - bin) : split_bins_;
                 for(std::uint64_t elem : fracmin_sketches[seq]){
                     std::unordered_set<std::uint64_t>& sketch = bin_sketches[bin + already_split];
                     size_t sketch_size = track_fill[bin + already_split];
                     size_t potential_sketch_size = sketch_size + static_cast<size_t>(static_cast<double>(1)/s);
-                    if(potential_sketch_size > t_max*f && already_split + 1 < split_bins){res[bin + already_split].push_back(seq); already_split += 1;} 
+                    if(potential_sketch_size > t_max*f && already_split + 1 < split_bins_){res[bin + already_split].push_back(seq); already_split += 1; split_bins += 1;} 
                     bin_sketches[bin + already_split].insert(elem);
                     track_fill[bin + already_split] = track_fill[bin + already_split]  +  static_cast<size_t>(static_cast<double>(1)/s);
                 }
@@ -490,6 +492,16 @@ std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning_co
 
     /// ============================================ ///
 
+    std::sort(res.begin(), res.end(), [] (const std::vector<std::size_t>& a, const std::vector<std::uint64_t>& b){
+        return a.size() < b.size();
+    });
 
-    return {res, {merge_start, merge_end}};
+    auto merge_it = std::partition_point(res.begin(), res.end(), [](const std::vector<size_t>& bin){return bin.size() < 2;});
+    auto split_it = std::partition_point(res.begin(), res.end(), [](const std::vector<size_t>& bin){return bin.size() == 0;}); // First Element with size 1; goes against empty bins
+
+    merge_start = std::distance(res.begin(), merge_it);
+    size_t split_start = std::distance(res.begin(), split_it);
+
+
+    return {res, {split_start, split_bins, merge_start}};
 }

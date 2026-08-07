@@ -8,6 +8,7 @@
 #include <queue>
 #include <cmath>
 #include <utility>
+#include <tuple>
 
 // @brief Given a number of bins and the higher bound of elements per bin, gather sequences, such that similar sequences are within the same bin and dissimilar sequences are in different bins.
 // @param labMaps : The clustering for the graph used.
@@ -29,7 +30,7 @@ std::vector<std::vector<size_t>> binning_base(const std::vector<std::unordered_m
 // @param t_max : The maximum number of elements per bin.
 // @param f: When splitting a singular sequence, determines how big a bin can be, i.e. |Bin| = t_max * f
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t, size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const double s, const size_t bins, const size_t t_max, const double f = 1.5);
@@ -69,7 +70,7 @@ LSH_Filtered<Hasher> filter_LSH(const std::vector<std::unordered_map<std::vector
 // @param t_max : The maximum number of elements per bin.
 // @param f: When splitting a singular sequence, determines how big a bin can be, i.e. |Bin| = t_max * f
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning_given_seqs(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> binning_given_seqs(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const std::vector<size_t>& relevant_seqs,
@@ -87,7 +88,7 @@ std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning_gi
 // @param f: When splitting a singular sequence, determines how big a bin can be, i.e. |Bin| = t_max * f
 // @note this is the core implementation. Calls above are just wrappers.
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const double s, const size_t bins, const size_t t_max, const double f = 1.5);

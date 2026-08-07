@@ -227,7 +227,7 @@ int main(int argc, char* argv[]){
 
     using IBF = std::vector<std::vector<size_t>>;
     std::vector<std::vector<IBF>> hibf_levels; // We save every single level here.
-    std::vector<std::vector<std::pair<size_t,size_t>>> merge_ranges; // In order to reconstruct, we need to know the Merge ranges for every IBF
+    std::vector<std::vector<std::tuple<size_t,size_t,size_t>>> ranges; // In order to reconstruct, we need to know the Merge ranges for every IBF
     const size_t max_level = 3;
 
     auto get_sub_t_max = [&](const std::vector<size_t>& seqs, size_t sub_bins){
@@ -250,6 +250,21 @@ int main(int argc, char* argv[]){
         return std::min(rounded, static_cast<size_t>(2000));
     };
 
+    auto print_ibf = [&](const std::string& filepath, const IBF& ibf){
+        std::vector<std::string> colors = {
+            "red", "blue", "green", "orange", "purple", "cyan", "magenta", "yellow", "brown", "pink"
+        };
+
+        std::ofstream dot(filepath);
+        dot << "graph G {\n" << "  node [style = filled];\n";
+        for(size_t b = 0; b < ibf.size(); b++){
+            std::string color = colors[b % colors.size()];
+            dot << "  " << b << " [label=\"" << printout(ibf[b]) << "\", color=\"" << color << "\"];\n";
+        }
+        dot << "}\n";
+        dot.close();
+    };
+
     std::vector<std::uint64_t> big_sig(1000000);
     std::iota(big_sig.begin(),big_sig.end(),1000000);
     fracmin_sigs.push_back(big_sig);
@@ -267,17 +282,17 @@ int main(int argc, char* argv[]){
 
     auto root = binning(big_labMaps, big_clusts, fracmin_sigs, s, bins, t_max);
     hibf_levels.push_back({root.first});
-    merge_ranges.push_back({root.second});
+    ranges.push_back({root.second});
 
     for(size_t lvl = 0; lvl + 1 < max_level; lvl++){
         std::vector<IBF> next_lvl;
-        std::vector<std::pair<size_t,size_t>> next_ranges;
+        std::vector<std::tuple<size_t,size_t,size_t>> next_ranges;
 
         for(size_t ibf_index = 0; ibf_index < hibf_levels[lvl].size(); ibf_index++){
             const IBF& ibf = hibf_levels[lvl][ibf_index];
-            auto [start, end] = merge_ranges[lvl][ibf_index];
+            auto [split_start, split_bins, merge_start] = ranges[lvl][ibf_index];
 
-            for(size_t b = start; b < end; b++){
+            for(size_t b = merge_start; b < ibf.size(); b++){
                 if(ibf[b].empty()) continue; // can't do stuff on an empty IBF.
 
                 const std::vector<size_t>& sub_seqs = ibf[b];
@@ -292,30 +307,22 @@ int main(int argc, char* argv[]){
         }
         if(next_lvl.empty()) break;
         hibf_levels.push_back(std::move(next_lvl));
-        merge_ranges.push_back(std::move(next_ranges));
+        ranges.push_back(std::move(next_ranges));
     }
 
     auto print_hibf = [&](const std::vector<std::vector<IBF>>& hibf_levels_){
         std::filesystem::path root_dir = "../results/HIBF";
         std::filesystem::create_directories(root_dir);
 
-        lemon::ListGraph g;
-        std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher> label_map;
-        construct_graph(hibf_levels_[0][0], g, label_map);
-        printgraph(g, label_map, (root_dir / "root_IBF.dot").string());
+        print_ibf((root_dir / "root_IBF.dot").string(), hibf_levels_[0][0]);
 
         for(size_t lvl = 1; lvl < hibf_levels.size(); lvl++){
             std::filesystem::path lvl_dir = root_dir / ("lvl" + std::to_string(lvl));
             std::filesystem::create_directories(lvl_dir);
 
             for(size_t index = 0; index < hibf_levels_[lvl].size(); index++){
-                lemon::ListGraph g;
-                std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher> label_map;
-                construct_graph(hibf_levels_[lvl][index], g, label_map);
-
                 std::string filename = "IBF." + std::to_string(lvl) + "." + std::to_string(index) + ".dot";
-                printgraph(g, label_map, (lvl_dir / filename).string());
-
+                print_ibf((lvl_dir / filename).string(), hibf_levels_[lvl][index]);
             }
         }
     };

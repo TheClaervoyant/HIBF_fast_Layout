@@ -431,7 +431,7 @@ void test_binning(){
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
 
   std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, fracmin_sketches, 1, 3, 2, 1.0).first; 
-  std::vector<std::vector<size_t>> expected_bin_1 = {{4,3}, {0,2}, {1}}; // The 3 and 2 are random; they could also be placed the other way around. 4, 0 and 1 MUST be like this though.
+  std::vector<std::vector<size_t>> expected_bin_1 = {{1}, {4,3}, {0,2}}; // The 3 and 2 are random; they could also be placed the other way around. 4, 0 and 1 MUST be like this though.
   bool match_expectation_1 = (example_bin_1 == expected_bin_1);
   
   std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, fracmin_sketches, 1, 4, 2, 1.0).first; 
@@ -490,7 +490,7 @@ void test_binning(){
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts4 = get_clusters(labMaps4);
 
   std::vector<std::vector<size_t>> example_bin_5 = binning(labMaps4, clusts4, fracmin_sketches, 1, 3, 2, 1.0).first; 
-  std::vector<std::vector<size_t>> expected_bin_5 = {{0,1}, {2,3}, {4}};
+  std::vector<std::vector<size_t>> expected_bin_5 = {{4}, {0,1}, {2,3}};
 
   bool splitting_mechanism = (example_bin_5 == expected_bin_5); 
 
@@ -516,15 +516,15 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph6, labMaps6[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts6 = get_clusters(labMaps6);
 
-  std::pair<std::vector<std::vector<size_t>>, std::pair<size_t,size_t>> result = binning(labMaps6, clusts6, isolated_sketch, 1, 4, 2, 1.0);
+  std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> result = binning(labMaps6, clusts6, isolated_sketch, 1, 4, 2, 1.0);
   std::vector<std::vector<size_t>> example_bin_7 = result.first; 
   std::vector<std::vector<size_t>> expected_bin_7 = {{0},{0},{2,1},{3,5,4}}; // 5 and 4 can be switched around but it is important to note that the last element was entered with the final way and it did not choose the bin with only the 0.
 
   bool results_isolated = (example_bin_7 == expected_bin_7);
 
   // @test Given the example above, we want to check if the Merge Bin Range captures the {2,1} Bin.
-  std::pair<size_t,size_t> merge_range = result.second;
-  bool correct_range = (merge_range.first == 2 && merge_range.second == 3);
+  std::tuple<size_t,size_t,size_t> ranges = result.second;
+  bool correct_range = (std::get<0>(ranges) == 0 && std::get<1>(ranges) == 2 && std::get<2>(ranges) == 2);
 
 
   std::cout << "\n=== Test the binning function with Fracmin===\n";
