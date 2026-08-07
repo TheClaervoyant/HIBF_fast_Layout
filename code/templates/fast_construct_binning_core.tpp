@@ -166,7 +166,7 @@ std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> bi
 
     for(auto& [component, node] : labMaps[0]){
         for(size_t seq : component){
-            if(fracmin_sketches[seq].size() > t_max){
+            if(fracmin_sketches[seq].size() >= t_max){
                 split_bins += 1;
                 size_t split_bins_ = static_cast<size_t>(std::ceil(static_cast<double>(fracmin_sketches[seq].size())/(f * static_cast<double>(t_max))));
                 size_t already_split = 0;
