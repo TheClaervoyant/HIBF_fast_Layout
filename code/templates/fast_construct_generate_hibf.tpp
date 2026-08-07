@@ -1,0 +1,110 @@
+#include "../fast_construct_bin.h"
+
+template <typename Hasher>
+std::pair<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
+                                            const std::vector<std::pair<size_t,size_t>>& levels,
+                                            const double s, const size_t bins, const double f, const size_t p, const size_t max_level){
+
+    const std::vector<std::vector<std::uint64_t>>& oph_sigs = signatures.first;
+    const std::vector<std::vector<std::uint64_t>>& fracmin_sigs = signatures.second;
+
+    lemon::ListGraph graph;
+    std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>> labMaps = generate_all<Hasher>(oph_sigs, levels, graph);
+    std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts = get_clusters(labMaps);
+
+    auto refine_and_bin = [&](const std::vector<size_t>& seqs, size_t sub_bins, size_t lower, size_t upper, bool all_seqs) {
+        std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> res;
+        size_t curr_lower = lower;
+        size_t curr_upper = upper;
+        size_t curr_t_max = (curr_lower + curr_upper)/(2*bins*s);
+        size_t old_t_max = 0;
+
+        for(size_t it = 0; it <= p; it++){
+            if(curr_t_max == old_t_max) break; //  reached convergence.
+            res = all_seqs ? binning(labMaps, clusts, fracmin_sigs, s, sub_bins, curr_t_max, f) : binning_given_seqs(labMaps, clusts, fracmin_sigs, seqs, s, sub_bins, curr_t_max, f);
+
+            if(it == p) break; // Last iteration done
+
+            const auto& [split_start, split_bins, merge_start] = res.second;
+            const std::vector<std::vector<size_t>>& result = res.first;
+
+            size_t split_bin_amt = merge_start - split_start;
+            size_t merge_bin_amt = result.size() - merge_start;
+
+            if(split_bin_amt == 0 && merge_bin_amt == 0) break; // can't refine  if the IBF is empty
+
+            size_t split_avg = split_bin_amt ? splitting_average(result, fracmin_sigs, split_start, merge_start, s, f) : 0;
+            size_t merge_avg = merge_bin_amt ? merge_average(result, fracmin_sigs, merge_start, s) : 0;
+
+            size_t new_t_max;
+            if(split_avg > merge_avg) curr_upper = curr_t_max;
+            else curr_lower = curr_t_max;
+
+            if(new_t_max == 0) break; // If t_max should get really small
+            old_t_max = curr_t_max;
+            curr_t_max = (curr_lower + curr_upper)/(2*bins*s);;
+        }
+        return res;
+    };
+
+    auto get_upper_lower = [&](const std::vector<size_t>& seqs, size_t sub_bins){
+        std::vector<const std::vector<std::uint64_t>*> ptrs;
+        ptrs.reserve(seqs.size());
+        for(size_t seq : seqs) ptrs.push_back(&fracmin_sigs[seq]);
+
+        size_t union_size = get_union_size_ptr(ptrs);
+        size_t sum = 0;
+        for(size_t seq : seqs) sum += fracmin_sigs[seq].size();
+
+        return std::pair{union_size, sum};
+    };
+
+    auto get_sub_bins = [&](size_t N){
+        if(N == 0) return size_t{0};
+        double raw = std::sqrt(static_cast<double>(N));
+        size_t rounded = static_cast<size_t>(std::ceil(raw/64.0))*64; // round to nearest multiple of 64
+        if (rounded == 0) rounded = 64;
+        return std::min(rounded, static_cast<size_t>(2000));
+    };
+
+    size_t union_size = get_union_size(fracmin_sigs);
+    size_t sum_size = 0;
+    for(const std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
+
+    std::vector<std::vector<IBF>> hibf_levels; // We save every single level here.
+    std::vector<std::vector<std::tuple<size_t,size_t,size_t>>> ranges; // In order to reconstruct, we need to know the Merge ranges for every IBF
+
+    std::vector<size_t> dummy =  {0};
+
+    auto root = refine_and_bin(dummy, bins, union_size, sum_size, true); // Since refine_and_bin doesnt need a spefific vector when calling binning, this dummy will do the trick.
+    hibf_levels.push_back({root.first});
+    ranges.push_back({root.second});
+
+    for(size_t lvl = 0; lvl + 1 < max_level; lvl++){
+        std::vector<IBF> next_lvl;
+        std::vector<std::tuple<size_t,size_t,size_t>> next_ranges;
+
+        for(size_t ibf_index = 0; ibf_index < hibf_levels[lvl].size(); ibf_index++){
+            const IBF& ibf = hibf_levels[lvl][ibf_index];
+            auto [split_start, split_bins, merge_start] = ranges[lvl][ibf_index];
+
+            for(size_t b = merge_start; b < ibf.size(); b++){
+                if(ibf[b].empty()) continue; // can't do stuff on an empty IBF.
+
+                const std::vector<size_t>& sub_seqs = ibf[b];
+                size_t sub_bins = get_sub_bins(sub_seqs.size());
+                const auto& [sub_lower, sub_higher] = get_upper_lower(sub_seqs, sub_bins);
+
+                auto child = refine_and_bin(sub_seqs, sub_bins, sub_lower, sub_higher, false);
+                next_lvl.push_back(std::move(child.first));
+                next_ranges.push_back(child.second);
+
+            }
+        }
+        if(next_lvl.empty()) break;
+        hibf_levels.push_back(std::move(next_lvl));
+        ranges.push_back(std::move(next_ranges));
+    }
+
+    return {hibf_levels, ranges};
+}
