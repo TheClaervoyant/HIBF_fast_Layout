@@ -1,7 +1,7 @@
 #include "../fast_construct_graph.h"
 
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const double s, const size_t bins, const size_t t_max, const double f){
@@ -13,7 +13,7 @@ std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> bi
     size_t split_bins = 0;
 
     std::vector<std::vector<size_t>> res(bins); 
-    if(bins == 0) return {res, {0,0,0}};
+    if(bins == 0) return {res, {0,0,0}, {}};
 
     std::vector<size_t> track_fill(bins, 0); // Used later on to track the amount of elements in each bin.
     std::vector<std::unordered_set<std::uint64_t>> bin_sketches(bins); // We need to efficiently keep track of the growing fracmin sketch for every bin
@@ -492,10 +492,22 @@ std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> bi
 
     /// ============================================ ///
 
-    std::sort(res.begin(), res.end(), [] (const std::vector<std::size_t>& a, const std::vector<std::uint64_t>& b){
-        if(a.size() != b.size()) return a.size() < b.size();
-        else return a.front() < b.front();
+    std::vector<size_t> permutation(res.size());
+    std::iota(permutation.begin(),permutation.end(),0);
+
+    std::sort(permutation.begin(), permutation.end(), [&res] (size_t a, const size_t b){
+        if(res[a].size() != res[b].size()) return res[a].size() < res[b].size();
+        else return res[a].front() < res[b].front();
     });
+
+    std::vector<std::vector<size_t>> sorted_res(res.size());
+    std::vector<size_t> sorted_trackfill(res.size());
+    for(size_t k = 0; k < permutation.size(); k++){
+        sorted_res[k] = std::move(res[permutation[k]]);
+        sorted_trackfill[k] = track_fill[permutation[k]];
+    }
+    res = std::move(sorted_res);
+    track_fill = std::move(sorted_trackfill);
 
     auto merge_it = std::partition_point(res.begin(), res.end(), [](const std::vector<size_t>& bin){return bin.size() < 2;});
     auto split_it = std::partition_point(res.begin(), res.end(), [](const std::vector<size_t>& bin){return bin.size() == 0;}); // First Element with size 1; goes against empty bins
@@ -504,5 +516,5 @@ std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> bi
     size_t split_start = std::distance(res.begin(), split_it);
 
 
-    return {res, {split_start, split_bins, merge_start}};
+    return {res, {split_start, split_bins, merge_start}, track_fill};
 }

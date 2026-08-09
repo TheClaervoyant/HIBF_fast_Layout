@@ -199,7 +199,7 @@ int main(int argc, char* argv[]){
     size_t sum_size = 0;
     for(std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
     size_t t_max = (sum_size + union_size)/(2*bins*s);
-    std::vector<std::vector<size_t>> buckets = binning(labMaps, clusts, fracmin_sigs, s, bins, t_max).first;
+    std::vector<std::vector<size_t>> buckets = std::get<0>(binning(labMaps, clusts, fracmin_sigs, s, bins, t_max));
 
     auto get_pointers = [&](const std::vector<std::size_t>& bin){
         std::vector<const std::vector<std::uint64_t>*> ptrs;

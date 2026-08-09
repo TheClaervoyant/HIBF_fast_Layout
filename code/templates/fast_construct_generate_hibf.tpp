@@ -1,20 +1,20 @@
 #include "../fast_construct_bin.h"
 
 template <typename Hasher>
-std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
+std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
                                             const double s, const size_t bins, const double f, const size_t p, const size_t max_level){
 
     const std::vector<std::vector<std::uint64_t>>& oph_sigs = signatures.first;
     const std::vector<std::vector<std::uint64_t>>& fracmin_sigs = signatures.second;
-    std::unordered_map<size_t, std::vector<std::pair<size_t,size_t>>> seq_layout; // We already want to store information according to Layout standards.
+    std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>> seq_layout; // We already want to store information according to Layout standards.
 
     lemon::ListGraph graph;
     std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>> labMaps = generate_all<Hasher>(oph_sigs, levels, graph);
     std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts = get_clusters(labMaps);
 
     auto refine_and_bin = [&](const std::vector<size_t>& seqs, size_t sub_bins, size_t lower, size_t upper, bool all_seqs) {
-        std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> res;
+        std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> res;
         size_t curr_lower = lower;
         size_t curr_upper = upper;
         size_t curr_t_max = (curr_lower + curr_upper)/(2*bins*s);
@@ -26,8 +26,8 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
             if(it == p) break; // Last iteration done
 
-            const auto& [split_start, split_bins, merge_start] = res.second;
-            const std::vector<std::vector<size_t>>& result = res.first;
+            const auto& [split_start, split_bins, merge_start] = std::get<1>(res);
+            const std::vector<std::vector<size_t>>& result = std::get<0>(res);
 
             size_t split_bin_amt = merge_start - split_start;
             size_t merge_bin_amt = result.size() - merge_start;
@@ -47,18 +47,18 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
         return res;
     };
 
-    auto record_bins = [&](const IBF& result, size_t split_start, size_t merge_start){
+    auto record_bins = [&](const IBF& result, size_t split_start, size_t merge_start, size_t index){
         for(size_t b = split_start; b < merge_start;){
             if(result[b].empty()){b += 1; continue;}
             size_t seq = result[b][0];
             size_t start = b;
             size_t count = 0;
             while(b < merge_start && !result[b].empty() && result[b][0] == seq){count += 1; b += 1;}
-            seq_layout[seq].push_back({start, count});
+            seq_layout[seq].push_back({index,start, count});
         }
 
         for(size_t b = merge_start; b < result.size(); b++){
-            for(size_t seq : result[b]) seq_layout[seq].push_back({b,1});
+            for(size_t seq : result[b]) seq_layout[seq].push_back({index,b,1});
         }
     };
 
@@ -92,10 +92,10 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
     std::vector<size_t> dummy =  {0};
 
     auto root = refine_and_bin(dummy, bins, union_size, sum_size, true); // Since refine_and_bin doesnt need a spefific vector when calling binning, this dummy will do the trick.
-    hibf_levels.push_back({root.first});
-    ranges.push_back({root.second});
-    auto [split_start, split_bins, merge_start] = root.second;
-    record_bins(root.first, split_start, merge_start);
+    hibf_levels.push_back({std::get<0>(root)});
+    auto [split_start, split_bins, merge_start] = std::get<1>(root);
+    ranges.push_back({std::get<1>(root)});
+    record_bins(std::get<0>(root), split_start, merge_start, 0);
 
     for(size_t lvl = 0; lvl + 1 < max_level; lvl++){
         std::vector<IBF> next_lvl;
@@ -113,10 +113,10 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
                 const auto& [sub_lower, sub_higher] = get_upper_lower(sub_seqs, sub_bins);
 
                 auto child = refine_and_bin(sub_seqs, sub_bins, sub_lower, sub_higher, false);
-                auto [split_start, split_bins, merge_start] = child.second;
-                next_lvl.push_back(std::move(child.first));
-                next_ranges.push_back(child.second);
-                record_bins(next_lvl.back(), split_start, merge_start);
+                auto [split_start, split_bins, merge_start] = std::get<1>(child);
+                next_lvl.push_back(std::move(std::get<0>(child)));
+                next_ranges.push_back(std::get<1>(child));
+                record_bins(next_lvl.back(), split_start, merge_start, next_lvl.size() -1);
 
             }
         }

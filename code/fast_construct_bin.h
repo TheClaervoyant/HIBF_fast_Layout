@@ -30,7 +30,7 @@ std::vector<std::vector<size_t>> binning_base(const std::vector<std::unordered_m
 // @param t_max : The maximum number of elements per bin.
 // @param f: When splitting a singular sequence, determines how big a bin can be, i.e. |Bin| = t_max * f
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t, size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const double s, const size_t bins, const size_t t_max, const double f = 1.5);
@@ -70,7 +70,7 @@ LSH_Filtered<Hasher> filter_LSH(const std::vector<std::unordered_map<std::vector
 // @param t_max : The maximum number of elements per bin.
 // @param f: When splitting a singular sequence, determines how big a bin can be, i.e. |Bin| = t_max * f
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> binning_given_seqs(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> binning_given_seqs(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const std::vector<size_t>& relevant_seqs,
@@ -88,7 +88,7 @@ std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> bi
 // @param f: When splitting a singular sequence, determines how big a bin can be, i.e. |Bin| = t_max * f
 // @note this is the core implementation. Calls above are just wrappers.
 template <typename Hasher>
-std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const double s, const size_t bins, const size_t t_max, const double f = 1.5);
@@ -120,7 +120,7 @@ size_t splitting_average(const std::vector<std::vector<size_t>>& res, const std:
 // @param max_level : Limits how many the HIBF is allowed to have.
 using IBF = std::vector<std::vector<size_t>>;
 template <typename Hasher>
-std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
+std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
                                             const double s, const size_t bins, const double f, const size_t p, const size_t max_level);
 #include "templates/fast_construct_generate_hibf.tpp"
