@@ -493,7 +493,8 @@ std::pair<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>> bi
     /// ============================================ ///
 
     std::sort(res.begin(), res.end(), [] (const std::vector<std::size_t>& a, const std::vector<std::uint64_t>& b){
-        return a.size() < b.size();
+        if(a.size() != b.size()) return a.size() < b.size();
+        else return a.front() < b.front();
     });
 
     auto merge_it = std::partition_point(res.begin(), res.end(), [](const std::vector<size_t>& bin){return bin.size() < 2;});

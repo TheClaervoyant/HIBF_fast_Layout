@@ -431,11 +431,11 @@ void test_binning(){
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
 
   std::vector<std::vector<size_t>> example_bin_1 = binning(labMaps1, clusts1, fracmin_sketches, 1, 3, 2, 1.0).first; 
-  std::vector<std::vector<size_t>> expected_bin_1 = {{1}, {4,3}, {0,2}}; // The 3 and 2 are random; they could also be placed the other way around. 4, 0 and 1 MUST be like this though.
+  std::vector<std::vector<size_t>> expected_bin_1 = {{1}, {0,2}, {4,3}}; // The 3 and 2 are random; they could also be placed the other way around. 4, 0 and 1 MUST be like this though.
   bool match_expectation_1 = (example_bin_1 == expected_bin_1);
   
   std::vector<std::vector<size_t>> example_bin_2 = binning(labMaps1, clusts1, fracmin_sketches, 1, 4, 2, 1.0).first; 
-  std::vector<std::vector<size_t>> expected_bin_2 = {{4}, {0}, {1}, {2,3}}; 
+  std::vector<std::vector<size_t>> expected_bin_2 = {{0}, {1}, {4}, {2,3}}; 
   bool match_expectation_2 = (example_bin_2 == expected_bin_2);
 
 
@@ -476,7 +476,7 @@ void test_binning(){
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts3 = get_clusters(labMaps3);
 
   std::vector<std::vector<size_t>> example_bin_4 = binning(labMaps3, clusts3, fracmin_sketches, 1, 2, 3, 1.0).first; 
-  std::vector<std::vector<size_t>> expected_bin_4 = {{4,5,3}, {1,0,2}};
+  std::vector<std::vector<size_t>> expected_bin_4 = {{1,0,2}, {4,5,3}};
 
   bool merge_mechanism = (example_bin_4 == expected_bin_4); 
 
@@ -627,6 +627,51 @@ void test_filter_LSH(){
   std::cout << "When no sequence is relevant, everything is empty: " << colored_bool(all_empty) << "\n";
   std::cout << "When every sequence is relevant, no change is notable: " << colored_bool(no_change) << "\n";
 }
+
+void test_record_bin(){
+  using IBF = std::vector<std::vector<size_t>>;
+  auto record_bins = [&](const IBF& result, size_t split_start, size_t merge_start, std::unordered_map<size_t, std::vector<std::pair<size_t,size_t>>>& seq_layout){
+      for(size_t b = split_start; b < merge_start;){
+          if(result[b].empty()){b += 1; continue;}
+          size_t seq = result[b][0];
+          size_t start = b;
+          size_t count = 0;
+          while(b < merge_start && !result[b].empty() && result[b][0] == seq){count += 1; b += 1;}
+          seq_layout[seq].push_back({start, count});
+      }
+
+      for(size_t b = merge_start; b < result.size(); b++){
+          for(size_t seq : result[b]) seq_layout[seq].push_back({b,1});
+      }
+  };
+
+  IBF root_ibf = {{0}, {1}, {2}, {3}, {4}, {5,6,7}};
+  size_t root_split = 0;
+  size_t root_merge = 5;
+  IBF child_ibf = {{6}, {6}, {5}, {7}};
+  size_t child_split = 0;
+  size_t child_merge = 4;
+
+  std::unordered_map<size_t, std::vector<std::pair<size_t,size_t>>> seq_layout;
+  record_bins(root_ibf, root_split, root_merge, seq_layout);
+  record_bins(child_ibf, child_split, child_merge, seq_layout);
+  
+  bool singletons_correct = true;
+  for(size_t seq = 0; seq <= 4; seq++){
+    if(seq_layout[seq].size() != 1 || seq_layout[seq][0] != std::pair<size_t,size_t>({seq,1})) singletons_correct = false;
+  }
+
+  bool seq5_correct = (seq_layout[5].size() == 2 && seq_layout[5][0] == std::pair<size_t,size_t>({5,1})) && seq_layout[5][1] == std::pair<size_t,size_t>({2,1});
+  bool seq6_correct = (seq_layout[6].size() == 2 && seq_layout[6][0] == std::pair<size_t,size_t>({5,1})) && seq_layout[6][1] == std::pair<size_t,size_t>({0,2});
+  bool seq7_correct = (seq_layout[7].size() == 2 && seq_layout[7][0] == std::pair<size_t,size_t>({5,1})) && seq_layout[7][1] == std::pair<size_t,size_t>({3,1});
+
+  std::cout << "\n=== Test the record_bin function ===\n";
+  std::cout << "Singletons (seq0 - seq4) computed correctly: " << colored_bool(singletons_correct) << "\n";
+  std::cout << "Sequence 5 correct: " << colored_bool(seq5_correct) << "\n";
+  std::cout << "Sequence 6 correct:  " << colored_bool(seq6_correct) << "\n";
+  std::cout << "Sequence 7 correct: " << colored_bool(seq7_correct) << "\n";
+}
+
 int main(){
   test_construct_graph_tower();
   test_construct_graph();
@@ -639,4 +684,5 @@ int main(){
   test_binning_base();
   test_binning();
   test_filter_LSH();
+  test_record_bin();
 }

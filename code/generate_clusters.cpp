@@ -262,7 +262,7 @@ int main(int argc, char* argv[]){
         }
     };
 
-    print_hibf(full_hibf.first);
+    print_hibf(std::get<0>(full_hibf));
 
     return 0;
 }
