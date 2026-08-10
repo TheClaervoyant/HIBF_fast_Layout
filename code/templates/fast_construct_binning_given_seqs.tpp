@@ -1,7 +1,7 @@
 #include "../fast_construct_graph.h"
 
 template <typename Hasher>
-std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> binning_given_seqs(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> binning_given_seqs(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const std::vector<size_t>& relevant_seqs,

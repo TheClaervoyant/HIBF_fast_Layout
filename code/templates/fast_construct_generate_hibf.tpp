@@ -18,16 +18,24 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
     std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts = get_clusters(labMaps);
 
     auto refine_and_bin = [&](const std::vector<size_t>& seqs, size_t sub_bins, size_t lower, size_t upper, bool all_seqs) {
-        std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> res;
+        std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> res;
         size_t curr_lower = lower;
         size_t curr_upper = upper;
-        size_t curr_t_max = (curr_lower + curr_upper)/(2*bins*s);
+        size_t curr_t_max = (curr_lower + curr_upper)/(2*sub_bins*s);
         size_t old_t_max = 0;
 
-        for(size_t it = 0; it <= p; it++){
+        for(size_t it = 0; it <= p; it){
             if(curr_t_max == old_t_max) break; //  reached convergence.
             res = all_seqs ? binning(labMaps, clusts, fracmin_sigs, s, sub_bins, curr_t_max, f) : binning_given_seqs(labMaps, clusts, fracmin_sigs, seqs, s, sub_bins, curr_t_max, f);
 
+            bool overflow = std::get<3>(res);
+            if(overflow){
+                curr_lower = curr_t_max;
+                if(curr_t_max == 0) break;
+                old_t_max = curr_t_max;
+                curr_t_max = (curr_lower + curr_upper)/(2*sub_bins*s);
+                continue;
+            }
             if(it == p) break; // Last iteration done
 
             const auto& [split_start, split_bins, merge_start] = std::get<1>(res);
@@ -46,7 +54,8 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
             if(curr_t_max == 0) break; // If t_max should get really small
             old_t_max = curr_t_max;
-            curr_t_max = (curr_lower + curr_upper)/(2*bins*s);;
+            curr_t_max = (curr_lower + curr_upper)/(2*sub_bins*s);
+            it += 1;
         }
         return res;
     };
@@ -80,6 +89,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
     auto get_sub_bins = [&](size_t N){
         if(N == 0) return size_t{0};
+        if(N <= 64) return N; // No need to make a fuss out of this minute stuff.
         double raw = std::sqrt(static_cast<double>(N));
         size_t rounded = static_cast<size_t>(std::ceil(raw/64.0))*64; // round to nearest multiple of 64
         if (rounded == 0) rounded = 64;

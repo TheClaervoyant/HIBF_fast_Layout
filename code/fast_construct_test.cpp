@@ -516,7 +516,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph6, labMaps6[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts6 = get_clusters(labMaps6);
 
-  std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> result = binning(labMaps6, clusts6, isolated_sketch, 1, 4, 2, 1.0);
+  std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> result = binning(labMaps6, clusts6, isolated_sketch, 1, 4, 2, 1.0);
   std::vector<std::vector<size_t>> example_bin_7 = std::get<0>(result); 
   std::vector<std::vector<size_t>> expected_bin_7 = {{0},{0},{2,1},{3,5,4}}; // 5 and 4 can be switched around but it is important to note that the last element was entered with the final way and it did not choose the bin with only the 0.
 

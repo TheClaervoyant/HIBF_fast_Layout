@@ -1,7 +1,7 @@
 #include "../fast_construct_graph.h"
 
 template <typename Hasher>
-std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
+std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const double s, const size_t bins, const size_t t_max, const double f){
@@ -11,9 +11,11 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
     size_t bin = 0;
     size_t merge_bins = 0;
     size_t split_bins = 0;
+    size_t tot_seqs = 0;
+    bool overflow = false;
 
     std::vector<std::vector<size_t>> res(bins); 
-    if(bins == 0) return {res, {0,0,0}, {}};
+    if(bins == 0) return {res, {0,0,0}, {}, false};
 
     std::vector<size_t> track_fill(bins, 0); // Used later on to track the amount of elements in each bin.
     std::vector<std::unordered_set<std::uint64_t>> bin_sketches(bins); // We need to efficiently keep track of the growing fracmin sketch for every bin
@@ -165,7 +167,9 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
     /// @note this is all setup, such as sorting the highest level and splitting sequences too large.
 
     for(auto& [component, node] : labMaps[0]){
+        tot_seqs += component.size();
         for(size_t seq : component){
+            if(bin >= bins) {return {res, {0,0,0}, track_fill, true};}
             if(fracmin_sketches[seq].size() >= t_max){
                 split_bins += 1;
                 size_t split_bins_ = static_cast<size_t>(std::ceil(static_cast<double>(fracmin_sketches[seq].size())/(f * static_cast<double>(t_max))));
@@ -184,7 +188,10 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
                 res[bin - 1].push_back(seq);
             }
         }
+        if(overflow) break;
     }
+
+    if(bin >= bins && binned.size() != tot_seqs) return {res, {0,0,0}, track_fill, true};
 
     for(auto& [component, node] : labMaps[0]) top_clusters.push_back(&component);
 
@@ -518,5 +525,5 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
     size_t split_start = std::distance(res.begin(), split_it);
 
 
-    return {res, {split_start, split_bins, merge_start}, track_fill};
+    return {res, {split_start, split_bins, merge_start}, track_fill, overflow};
 }
