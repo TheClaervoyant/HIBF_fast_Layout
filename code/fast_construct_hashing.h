@@ -23,7 +23,7 @@ std::uint64_t xxhash_wrap(std::uint64_t input);
 // @note in the end, returns a vector of size 2^k (OPH).
 // @note this function is rather for debugging purposes, when actually using stuff, refer to @func ophs
 // @note the first set of vectors is the OPH, the other one is the Fracmin.
-std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> one_permutation_fracmin_hash(const std::vector<std::vector<std::uint64_t>>& hashes,
+std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> one_permutation_fracmin_hash(const std::vector<std::vector<std::uint64_t>>& hashes,
                                                 const std::uint8_t k, const double s, 
                                                 std::function<std::uint64_t(std::uint64_t)> hashFunc = xxhash_wrap);
 
@@ -36,7 +36,7 @@ std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::
 //
 // @note every vector inside of the returned one has a size of 2^k (OPH).
 // @note the first set of vectors is the OPH, the other one is the Fracmin.
-std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> ophs_fmhs(const std::filesystem::path& filepath,
+std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> ophs_fmhs(const std::filesystem::path& filepath,
                                               const std::uint8_t q, const std::uint8_t k, const double s,
                                               std::function<std::uint64_t(std::uint64_t)> hashFunc = xxhash_wrap);
 

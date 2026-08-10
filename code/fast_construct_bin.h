@@ -9,6 +9,8 @@
 #include <cmath>
 #include <utility>
 #include <tuple>
+#include <fstream>
+#include <string>
 
 // @brief Given a number of bins and the higher bound of elements per bin, gather sequences, such that similar sequences are within the same bin and dissimilar sequences are in different bins.
 // @param labMaps : The clustering for the graph used.
@@ -120,7 +122,15 @@ size_t splitting_average(const std::vector<std::vector<size_t>>& res, const std:
 // @param max_level : Limits how many the HIBF is allowed to have.
 using IBF = std::vector<std::vector<size_t>>;
 template <typename Hasher>
-std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
+std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
                                             const double s, const size_t bins, const double f, const size_t p, const size_t max_level);
 #include "templates/fast_construct_generate_hibf.tpp"
+
+void write_header(std::ostream& out, const std::vector<std::vector<IBF>>& hibf_levels, 
+                  const std::vector<std::vector<size_t>>& max_bin_ids, 
+                  const std::vector<std::vector<std::pair<size_t,size_t>>>& parents);
+
+void write_content(std::ofstream& out, 
+                   const std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>& seq_layout, 
+                   const std::unordered_map<size_t, std::string>& seq_to_path);

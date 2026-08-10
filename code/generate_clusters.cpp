@@ -183,9 +183,9 @@ int main(int argc, char* argv[]){
     lemon::ListGraph graph;
     
     // Generate One Permutation Hashes for each "sequence":
-    std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> sigs = one_permutation_fracmin_hash(rand_clusts, 8, s);
-    std::vector<std::vector<std::uint64_t>> oph_sigs = sigs.first;
-    std::vector<std::vector<std::uint64_t>> fracmin_sigs = sigs.second;
+    std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> sigs = one_permutation_fracmin_hash(rand_clusts, 8, s);
+    std::vector<std::vector<std::uint64_t>> oph_sigs = std::get<0>(sigs);
+    std::vector<std::vector<std::uint64_t>> fracmin_sigs = std::get<1>(sigs);
     
     std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, standardHasher>> labMaps = generate_all<standardHasher>(oph_sigs, lvls, graph);
     
@@ -240,9 +240,11 @@ int main(int argc, char* argv[]){
 
     std::vector<std::uint64_t> big_sig(1000000);
     std::iota(big_sig.begin(),big_sig.end(),1000000);
-    sigs.second.push_back(big_sig);
-    sigs.first.push_back(std::vector<std::uint64_t>(256,1));
+    std::get<1>(sigs).push_back(big_sig);
+    std::get<0>(sigs).push_back(std::vector<std::uint64_t>(256,1));
+    std::get<2>(sigs)[625] = "/path/to/file/625.fasta";
     auto full_hibf = generate_hibf<standardHasher>(sigs, lvls, s, bins, 1.5, refinements, max_levels);
+    std::unordered_map<size_t, std::string>& seq_to_file = std::get<2>(sigs);
 
 
     auto print_hibf = [&](const std::vector<std::vector<IBF>>& hibf_levels_){
@@ -263,6 +265,11 @@ int main(int argc, char* argv[]){
     };
 
     print_hibf(std::get<0>(full_hibf));
+    std::filesystem::path root_dir = "../results/HIBF";
+    std::ofstream header_out(root_dir / "Test_Header.txt");
+    write_header(header_out, std::get<0>(full_hibf), std::get<3>(full_hibf), std::get<4>(full_hibf));
+    write_content(header_out, std::get<2>(full_hibf), seq_to_file);
+    header_out.close();
 
     return 0;
 }

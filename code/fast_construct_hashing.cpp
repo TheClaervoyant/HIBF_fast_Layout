@@ -8,11 +8,13 @@
 
 std::uint64_t xxhash_wrap(std::uint64_t input){ return XXH64(&input, sizeof(input), 0); }
 
-std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> one_permutation_fracmin_hash(const std::vector<std::vector<std::uint64_t>>& hashes, const std::uint8_t k, const double s, std::function<std::uint64_t(std::uint64_t)> hashFunc){
+std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> one_permutation_fracmin_hash(const std::vector<std::vector<std::uint64_t>>& hashes, const std::uint8_t k, const double s, std::function<std::uint64_t(std::uint64_t)> hashFunc){
   std::vector<std::vector<std::uint64_t>> res_oph;
   res_oph.reserve(hashes.size());
   std::vector<std::vector<std::uint64_t>> res_fracmin;
   res_fracmin.reserve(hashes.size());
+  std::unordered_map<size_t, std::string> seq_to_path;
+  size_t seq_id = 0;
 
   for(const std::vector<std::uint64_t>& hashes_ : hashes){
     std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
@@ -26,24 +28,29 @@ std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::
       if(hash_ < thresh) tmp_fracmin.push_back(hash_);
 
       // OPH Part
-      std::uint64_t index = hash_ & ((1ULL << k) -1); //Extract the first k bits of the initial hash value.
+      std::uint8_t index = hash_ & ((1ULL << k) -1); //Extract the first k bits of the initial hash value.
       std::uint64_t val = hash_ >> k; // remove the k bits, they'd just be a bias since evry value in the bucket would ALWAYS have these bits same.
       if(val < tmp_oph[index]) tmp_oph[index] = val;
     }
     std::sort(tmp_fracmin.begin(), tmp_fracmin.end());
 
+    std::string test_file = "/path/to/file/" + std::to_string(seq_id) + ".fasta";
+    seq_to_path[seq_id] = test_file;
+    seq_id += 1;
     res_oph.push_back(tmp_oph);
     res_fracmin.push_back(tmp_fracmin);
   }
-  return {std::move(res_oph), std::move(res_fracmin)};
+  return {std::move(res_oph), std::move(res_fracmin), std::move(seq_to_path)};
 }
 
-std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>> ophs_fmhs(const std::filesystem::path& filepath, const std::uint8_t q, const std::uint8_t k, const double s, std::function<std::uint64_t(std::uint64_t)> hashFunc){
+std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> ophs_fmhs(const std::filesystem::path& filepath, const std::uint8_t q, const std::uint8_t k, const double s, std::function<std::uint64_t(std::uint64_t)> hashFunc){
   std::vector<std::vector<std::uint64_t>> res_oph;
   std::vector<std::vector<std::uint64_t>> res_fmh;
+  std::unordered_map<size_t, std::string> seq_to_path;
 
   auto fin = seqan3::sequence_file_input{filepath};
   auto qmer_view = seqan3::views::kmer_hash(seqan3::ungapped{q});
+  size_t seq_id = 0;
   
   for(auto & record : fin){
     std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
@@ -63,10 +70,12 @@ std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::
     }
     std::sort(tmp_fracmin.begin(), tmp_fracmin.end());
 
+    seq_to_path[seq_id] = filepath.string();
+    seq_id += 1;
     res_fmh.push_back(tmp_fracmin);
     res_oph.push_back(tmp_oph);  
   }
-  return {std::move(res_oph), std::move(res_fmh)};
+  return {std::move(res_oph), std::move(res_fmh), std::move(seq_to_path)};
 }
 
 size_t get_union_size(const std::vector<std::vector<std::uint64_t>>& sketches){

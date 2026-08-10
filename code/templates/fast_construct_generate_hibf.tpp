@@ -1,13 +1,17 @@
 #include "../fast_construct_bin.h"
 
 template <typename Hasher>
-std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
+std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
                                             const double s, const size_t bins, const double f, const size_t p, const size_t max_level){
 
-    const std::vector<std::vector<std::uint64_t>>& oph_sigs = signatures.first;
-    const std::vector<std::vector<std::uint64_t>>& fracmin_sigs = signatures.second;
+    size_t max = std::numeric_limits<size_t>::max();
+    const std::vector<std::vector<std::uint64_t>>& oph_sigs = std::get<0>(signatures);
+    const std::vector<std::vector<std::uint64_t>>& fracmin_sigs = std::get<1>(signatures);
+
     std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>> seq_layout; // We already want to store information according to Layout standards.
+    std::vector<std::vector<size_t>> max_bin_ids;
+    std::vector<std::vector<std::pair<size_t,size_t>>> parents;
 
     lemon::ListGraph graph;
     std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>> labMaps = generate_all<Hasher>(oph_sigs, levels, graph);
@@ -96,10 +100,16 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
     auto [split_start, split_bins, merge_start] = std::get<1>(root);
     ranges.push_back({std::get<1>(root)});
     record_bins(std::get<0>(root), split_start, merge_start, 0);
+    std::vector<size_t> trackfill = std::get<2>(root);
+    size_t max_bin_id = trackfill.empty() ? 0 : std::distance(trackfill.begin(), std::max_element(trackfill.begin(), trackfill.end()));
+    max_bin_ids.push_back({max_bin_id});
+    parents.push_back({{max, max}});
 
     for(size_t lvl = 0; lvl + 1 < max_level; lvl++){
         std::vector<IBF> next_lvl;
         std::vector<std::tuple<size_t,size_t,size_t>> next_ranges;
+        std::vector<size_t> next_max_bin_ids;
+        std::vector<std::pair<size_t,size_t>> next_parents;
 
         for(size_t ibf_index = 0; ibf_index < hibf_levels[lvl].size(); ibf_index++){
             const IBF& ibf = hibf_levels[lvl][ibf_index];
@@ -114,8 +124,12 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
                 auto child = refine_and_bin(sub_seqs, sub_bins, sub_lower, sub_higher, false);
                 auto [split_start, split_bins, merge_start] = std::get<1>(child);
+                std::vector<size_t> trackfill = std::get<2>(child);
                 next_lvl.push_back(std::move(std::get<0>(child)));
+                max_bin_id = trackfill.empty() ? 0 : std::distance(trackfill.begin(), std::max_element(trackfill.begin(), trackfill.end()));
+                next_max_bin_ids.push_back(max_bin_id);
                 next_ranges.push_back(std::get<1>(child));
+                next_parents.push_back({ibf_index, b});
                 record_bins(next_lvl.back(), split_start, merge_start, next_lvl.size() -1);
 
             }
@@ -123,7 +137,9 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
         if(next_lvl.empty()) break;
         hibf_levels.push_back(std::move(next_lvl));
         ranges.push_back(std::move(next_ranges));
+        max_bin_ids.push_back(std::move(next_max_bin_ids));
+        parents.push_back(std::move(next_parents));
     }
 
-    return {hibf_levels, ranges, seq_layout};
+    return {hibf_levels, ranges, seq_layout, max_bin_ids, parents};
 }

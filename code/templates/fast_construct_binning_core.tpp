@@ -497,6 +497,8 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
 
     std::sort(permutation.begin(), permutation.end(), [&res] (size_t a, const size_t b){
         if(res[a].size() != res[b].size()) return res[a].size() < res[b].size();
+        if(res[a].empty()) return false;
+        if(res[b].empty()) return true;
         else return res[a].front() < res[b].front();
     });
 
