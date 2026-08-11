@@ -124,7 +124,7 @@ using IBF = std::vector<std::vector<size_t>>;
 template <typename Hasher>
 std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
-                                            const double s, const size_t bins, const double f, const size_t p, const size_t max_level);
+                                            const double s, const double f, const size_t p, const size_t max_level);
 #include "templates/fast_construct_generate_hibf.tpp"
 
 void write_header(std::ostream& out, const std::vector<std::vector<IBF>>& hibf_levels, 

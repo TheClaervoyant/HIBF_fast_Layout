@@ -163,8 +163,8 @@ void printgraph(lemon::ListGraph& graph, std::vector<std::unordered_map<std::vec
 }
 
 int main(int argc, char* argv[]){
-    if(argc != 9){
-        std::cerr << "Missing parameters: " << "Amount cluster + cluster size + vector_size + Similarity in cluster + Similarity berween clusters + bins used in binning + Fraction s for Fracmin. + Refinement count when constructing the HIBF + Max Levels of HIBF\n";
+    if(argc != 8){
+        std::cerr << "Missing parameters: " << "Amount cluster + cluster size + vector_size + Similarity in cluster + Similarity berween clusters + Fraction s for Fracmin. + Refinement count when constructing the HIBF + Max Levels of HIBF\n";
         return 1;
     }
 
@@ -173,10 +173,9 @@ int main(int argc, char* argv[]){
     std::vector<double> j_sims = parse_doubles(argv[2]);
     std::vector<size_t> counts = parse_sizes(argv[3]);
     std::vector<std::pair<size_t, size_t>> lvls = parse_lvls(argv[4]);
-    size_t bins = std::stoul(argv[5]);
-    double s = std::stod(argv[6]);
-    size_t refinements = std::stoul(argv[7]);
-    size_t max_levels = std::stoul(argv[8]);
+    double s = std::stod(argv[5]);
+    size_t refinements = std::stoul(argv[6]);
+    size_t max_levels = std::stoul(argv[7]);
     
     std::vector<std::vector<std::uint64_t>> rand_clusts = get_any_cluster(vec_size, j_sims, counts, 0);
     
@@ -198,8 +197,8 @@ int main(int argc, char* argv[]){
     size_t union_size = get_union_size(fracmin_sigs);
     size_t sum_size = 0;
     for(std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
-    size_t t_max = (sum_size + union_size)/(2*bins*s);
-    std::vector<std::vector<size_t>> buckets = std::get<0>(binning(labMaps, clusts, fracmin_sigs, s, bins, t_max));
+    size_t t_max = (sum_size + union_size)/(2*64*s);
+    std::vector<std::vector<size_t>> buckets = std::get<0>(binning(labMaps, clusts, fracmin_sigs, s, 64, t_max));
 
     auto get_pointers = [&](const std::vector<std::size_t>& bin){
         std::vector<const std::vector<std::uint64_t>*> ptrs;
@@ -243,7 +242,7 @@ int main(int argc, char* argv[]){
     std::get<1>(sigs).push_back(big_sig);
     std::get<0>(sigs).push_back(std::vector<std::uint64_t>(256,1));
     std::get<2>(sigs)[625] = "/path/to/file/625.fasta";
-    auto full_hibf = generate_hibf<standardHasher>(sigs, lvls, s, bins, 1.5, refinements, max_levels);
+    auto full_hibf = generate_hibf<standardHasher>(sigs, lvls, s, 1.5, refinements, max_levels);
     std::unordered_map<size_t, std::string>& seq_to_file = std::get<2>(sigs);
 
 

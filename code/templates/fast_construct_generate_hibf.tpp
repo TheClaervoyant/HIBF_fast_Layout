@@ -3,7 +3,7 @@
 template <typename Hasher>
 std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
-                                            const double s, const size_t bins, const double f, const size_t p, const size_t max_level){
+                                            const double s, const double f, const size_t p, const size_t max_level){
 
     size_t max = std::numeric_limits<size_t>::max();
     const std::vector<std::vector<std::uint64_t>>& oph_sigs = std::get<0>(signatures);
@@ -96,6 +96,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
         return std::min(rounded, static_cast<size_t>(2000));
     };
 
+    const size_t global_bins = get_sub_bins(fracmin_sigs.size());
     size_t union_size = get_union_size(fracmin_sigs);
     size_t sum_size = 0;
     for(const std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
@@ -105,7 +106,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
     std::vector<size_t> dummy =  {0};
 
-    auto root = refine_and_bin(dummy, bins, union_size, sum_size, true); // Since refine_and_bin doesnt need a spefific vector when calling binning, this dummy will do the trick.
+    auto root = refine_and_bin(dummy, global_bins, union_size, sum_size, true); // Since refine_and_bin doesnt need a spefific vector when calling binning, this dummy will do the trick.
     hibf_levels.push_back({std::get<0>(root)});
     auto [split_start, split_bins, merge_start] = std::get<1>(root);
     ranges.push_back({std::get<1>(root)});
@@ -129,10 +130,9 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
                 if(ibf[b].empty()) continue; // can't do stuff on an empty IBF.
 
                 const std::vector<size_t>& sub_seqs = ibf[b];
-                size_t sub_bins = get_sub_bins(sub_seqs.size());
-                const auto& [sub_lower, sub_higher] = get_upper_lower(sub_seqs, sub_bins);
+                const auto& [sub_lower, sub_higher] = get_upper_lower(sub_seqs, global_bins);
 
-                auto child = refine_and_bin(sub_seqs, sub_bins, sub_lower, sub_higher, false);
+                auto child = refine_and_bin(sub_seqs, global_bins, sub_lower, sub_higher, false);
                 auto [split_start, split_bins, merge_start] = std::get<1>(child);
                 std::vector<size_t> trackfill = std::get<2>(child);
                 next_lvl.push_back(std::move(std::get<0>(child)));
