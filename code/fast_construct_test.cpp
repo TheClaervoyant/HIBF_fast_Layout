@@ -413,6 +413,7 @@ void test_binning_base(){
 
 void test_binning(){
   std::vector<std::vector<std::uint64_t>> fracmin_sketches = {{0}, {1}, {2}, {3}, {4}, {5}};
+  std::vector<double> fcorrs = compute_fcorrs(0.01, 4);
   // @test it is not important how things look; when bins == 0, the resulting vector should be empty, as there can be no binning.
   lemon::ListGraph graph0;
   std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, debugHasher>> labMaps0(2);
@@ -420,7 +421,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0,1}, {2}, {3}}), graph0, labMaps0[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts0 = get_clusters(labMaps0);
 
-  std::vector<std::vector<size_t>> zero_bins = std::get<0>(binning(labMaps0, clusts0,fracmin_sketches, 1, 0, 1, 1.0));
+  std::vector<std::vector<size_t>> zero_bins = std::get<0>(binning(labMaps0, clusts0,fracmin_sketches, 1, 0, 1, fcorrs));
   bool no_bins = zero_bins.empty();
 
   // @test Just a little example to see if it fits the expectations.
@@ -430,17 +431,17 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0},{1}, {2,3}, {4}}), graph1, labMaps1[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts1 = get_clusters(labMaps1);
 
-  std::vector<std::vector<size_t>> example_bin_1 = std::get<0>(binning(labMaps1, clusts1, fracmin_sketches, 1, 3, 2, 1.0)); 
+  std::vector<std::vector<size_t>> example_bin_1 = std::get<0>(binning(labMaps1, clusts1, fracmin_sketches, 1, 3, 2, fcorrs)); 
   std::vector<std::vector<size_t>> expected_bin_1 = {{1}, {0,2}, {4,3}}; // The 3 and 2 are random; they could also be placed the other way around. 4, 0 and 1 MUST be like this though.
   bool match_expectation_1 = (example_bin_1 == expected_bin_1);
   
-  std::vector<std::vector<size_t>> example_bin_2 = std::get<0>(binning(labMaps1, clusts1, fracmin_sketches, 1, 4, 2, 1.0)); 
+  std::vector<std::vector<size_t>> example_bin_2 = std::get<0>(binning(labMaps1, clusts1, fracmin_sketches, 1, 4, 2, fcorrs)); 
   std::vector<std::vector<size_t>> expected_bin_2 = {{0}, {1}, {4}, {2,3}}; 
   bool match_expectation_2 = (example_bin_2 == expected_bin_2);
 
 
   // @test we want to check that no sequence gets binned multiple times.
-  std::vector<std::vector<size_t>> no_dup_bin = std::get<0>(binning(labMaps1, clusts1, fracmin_sketches, 1, 2, 3, 1.0));
+  std::vector<std::vector<size_t>> no_dup_bin = std::get<0>(binning(labMaps1, clusts1, fracmin_sketches, 1, 2, 3, fcorrs));
   std::unordered_map<size_t,size_t> occurence_count;
   for(const std::vector<size_t>& bin : no_dup_bin)
     for(size_t seq : bin)
@@ -460,7 +461,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph2, labMaps2[3]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts2 = get_clusters(labMaps2);
 
-  std::vector<std::vector<size_t>> example_bin_3 = std::get<0>(binning(labMaps2, clusts2, fracmin_sketches, 1, 1, 3, 1.0)); 
+  std::vector<std::vector<size_t>> example_bin_3 = std::get<0>(binning(labMaps2, clusts2, fracmin_sketches, 1, 1, 3, fcorrs)); 
   std::vector<std::vector<size_t>> expected_bin_3 = {{0,4,1}}; // the other three elems are randomly added via Fallback.
 
   bool climb_mechanism = (example_bin_3[0][0] == expected_bin_3[0][0] && example_bin_3[0][1] == expected_bin_3[0][1] && example_bin_3[0][2] == expected_bin_3[0][2]);
@@ -475,7 +476,7 @@ void test_binning(){
 
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts3 = get_clusters(labMaps3);
 
-  std::vector<std::vector<size_t>> example_bin_4 = std::get<0>(binning(labMaps3, clusts3, fracmin_sketches, 1, 2, 3, 1.0)); 
+  std::vector<std::vector<size_t>> example_bin_4 = std::get<0>(binning(labMaps3, clusts3, fracmin_sketches, 1, 2, 3, fcorrs)); 
   std::vector<std::vector<size_t>> expected_bin_4 = {{1,0,2}, {4,5,3}};
 
   bool merge_mechanism = (example_bin_4 == expected_bin_4); 
@@ -489,7 +490,7 @@ void test_binning(){
 
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts4 = get_clusters(labMaps4);
 
-  std::vector<std::vector<size_t>> example_bin_5 = std::get<0>(binning(labMaps4, clusts4, fracmin_sketches, 1, 3, 2, 1.0)); 
+  std::vector<std::vector<size_t>> example_bin_5 = std::get<0>(binning(labMaps4, clusts4, fracmin_sketches, 1, 3, 2,fcorrs)); 
   std::vector<std::vector<size_t>> expected_bin_5 = {{4}, {0,1}, {2,3}};
 
   bool splitting_mechanism = (example_bin_5 == expected_bin_5); 
@@ -502,7 +503,9 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0}}), graph5, labMaps5[0]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts5 = get_clusters(labMaps5);
 
-  std::vector<std::vector<size_t>> example_bin_6 = std::get<0>(binning(labMaps5, clusts5, distinct_sketch, 1, 4, 1, 1.0)); 
+  // We will give here a specific vector of only 1.0s
+  std::vector<double> fcorrs_split(101, 1.0);
+  std::vector<std::vector<size_t>> example_bin_6 = std::get<0>(binning(labMaps5, clusts5, distinct_sketch, 1, 4, 1, fcorrs_split)); 
   std::vector<std::vector<size_t>> expected_bin_6 = {{0},{0},{0},{0}};
 
   bool split_singular = (example_bin_6 == expected_bin_6);
@@ -516,7 +519,7 @@ void test_binning(){
   construct_graph(std::vector<std::vector<size_t>>({{0}, {1}, {2}, {3}, {4}, {5}}), graph6, labMaps6[1]);
   std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts6 = get_clusters(labMaps6);
 
-  std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> result = binning(labMaps6, clusts6, isolated_sketch, 1, 4, 2, 1.0);
+  std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> result = binning(labMaps6, clusts6, isolated_sketch, 1, 4, 2, fcorrs);
   std::vector<std::vector<size_t>> example_bin_7 = std::get<0>(result); 
   std::vector<std::vector<size_t>> expected_bin_7 = {{0},{0},{2,1},{3,5,4}}; // 5 and 4 can be switched around but it is important to note that the last element was entered with the final way and it did not choose the bin with only the 0.
 

@@ -3,11 +3,12 @@
 template <typename Hasher>
 std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
-                                            const double s, const double f, const size_t p, const size_t max_level){
+                                            const double s, const double fpr, const size_t h, const size_t p, const size_t max_level){
 
     size_t max = std::numeric_limits<size_t>::max();
     const std::vector<std::vector<std::uint64_t>>& oph_sigs = std::get<0>(signatures);
     const std::vector<std::vector<std::uint64_t>>& fracmin_sigs = std::get<1>(signatures);
+    const std::vector<double> fcorrs = compute_fcorrs(fpr, h);
 
     std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>> seq_layout; // We already want to store information according to Layout standards.
     std::vector<std::vector<size_t>> max_bin_ids;
@@ -18,6 +19,8 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
     std::vector<std::unordered_map<size_t, const std::vector<size_t>*>> clusts = get_clusters(labMaps);
 
     auto refine_and_bin = [&](const std::vector<size_t>& seqs, size_t sub_bins, size_t lower, size_t upper, bool all_seqs) {
+        bool valid = false;
+        std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> b_res;
         std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> res;
         size_t curr_lower = lower;
         size_t curr_upper = upper;
@@ -26,7 +29,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
         for(size_t it = 0; it <= p; it){
             if(curr_t_max == old_t_max) break; //  reached convergence.
-            res = all_seqs ? binning(labMaps, clusts, fracmin_sigs, s, sub_bins, curr_t_max, f) : binning_given_seqs(labMaps, clusts, fracmin_sigs, seqs, s, sub_bins, curr_t_max, f);
+            res = all_seqs ? binning(labMaps, clusts, fracmin_sigs, s, sub_bins, curr_t_max, fcorrs) : binning_given_seqs(labMaps, clusts, fracmin_sigs, seqs, s, sub_bins, curr_t_max, fcorrs);
 
             bool overflow = std::get<3>(res);
             if(overflow){
@@ -41,13 +44,17 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
             const auto& [split_start, split_bins, merge_start] = std::get<1>(res);
             const std::vector<std::vector<size_t>>& result = std::get<0>(res);
 
+            valid = true;
+            b_res = res;
+
             size_t split_bin_amt = merge_start - split_start;
             size_t merge_bin_amt = result.size() - merge_start;
 
             if(split_bin_amt == 0 && merge_bin_amt == 0) break; // can't refine  if the IBF is empty
 
-            size_t split_avg = split_bin_amt ? splitting_average(result, fracmin_sigs, split_start, merge_start, s, f) : 0;
-            size_t merge_avg = merge_bin_amt ? merge_average(result, fracmin_sigs, merge_start, s) : 0;
+            const std::vector<size_t>& trackfill = std::get<2>(res);
+            size_t split_avg = split_bin_amt ? splitting_average(trackfill, split_start, merge_start) : 0;
+            size_t merge_avg = merge_bin_amt ? merge_average(trackfill, merge_start) : 0;
 
             if(split_avg > merge_avg) curr_upper = curr_t_max;
             else curr_lower = curr_t_max;
@@ -57,6 +64,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
             curr_t_max = (curr_lower + curr_upper)/(2*sub_bins*s);
             it += 1;
         }
+        if(std::get<3>(res) && valid) return b_res;
         return res;
     };
 

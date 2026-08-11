@@ -35,7 +35,7 @@ template <typename Hasher>
 std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> binning(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
-                                            const double s, const size_t bins, const size_t t_max, const double f = 1.5);
+                                            const double s, const size_t bins, const size_t t_max, const std::vector<double>& fcorrs);
 #include "templates/fast_construct_binning.tpp"
 
 // @brief In order to Bin Merge Bins again, we want to filter the LSH Tree in order to easily access the new bins again.
@@ -76,7 +76,7 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
                                             const std::vector<size_t>& relevant_seqs,
-                                            const double s, const size_t bins, const size_t t_max, const double f = 1.5);
+                                            const double s, const size_t bins, const size_t t_max, const std::vector<double>& fcorrs);
 #include "templates/fast_construct_binning_given_seqs.tpp"
 
 
@@ -93,38 +93,39 @@ template <typename Hasher>
 std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, std::vector<size_t>, bool> binning_core(const std::vector<std::unordered_map<std::vector<size_t>, lemon::ListGraph::Node, Hasher>>& labMaps, 
                                             const std::vector<std::unordered_map<size_t,const std::vector<size_t>*>>& level_clusters,
                                             const std::vector<std::vector<std::uint64_t>>& fracmin_sketches,
-                                            const double s, const size_t bins, const size_t t_max, const double f = 1.5);
+                                            const double s, const size_t bins, const size_t t_max, const std::vector<double>& fcorrs);
 #include "templates/fast_construct_binning_core.tpp"
 
-// @brief given an IBF and the information, where merging starts, compute the estimated merge size of each bin.
-// @param ibf : the corresponding IBF
-// @param fracmin_sketches : The Fracmin Sketches to initially build the IBF
-// @param merge_start : Index, where merging starts (inclusive)
-// @param s : The scaling factor initially used to compute the fracmin sketches
-size_t merge_average(const std::vector<std::vector<size_t>>& res, const std::vector<std::vector<std::uint64_t>>& fracmin_sketches, const size_t merge_start, const double s);
+// @brief given the amount of Hash functions used and the wanted false positive rate (fpr), compute for 100 bin sizes the correction factor.
+// @param fpr : The desired false positive rate.
+// @param h : The amount of Hash functions that will be used.
+std::vector<double> compute_fcorrs(double fpr, size_t h);
 
-// @brief given an IBF and the information, where splitting starts and ends, compute the estimated split size of each bin.
-// @param ibf : the corresponding IBF
-// @param fracmin_sketches : The Fracmin Sketches to initially build the IBF
+// @brief given the trackfill information of an IBF and where merging starts, compute the estimated merge size of each bin.
+// @param trackfill : The amount of elements in each bin
+// @param merge_start : Index, where merging starts (inclusive)
+size_t merge_average(const std::vector<size_t>& track_fill, const size_t merge_start);
+
+// @brief given the trackfill information of an IBF and where splitting starts and ends, compute the estimated splitting size of each bin.
+// @param track_fill : The amount of elements in each bin
 // @param split_start : Index, where splitting starts (inclusive)
 // @param split_end : Index, where splitting ends (exclusive)
-// @param s : The scaling factor initially used to compute the fracmin sketches
-// @param f : The scaling factor by which the split bins were increased
-size_t splitting_average(const std::vector<std::vector<size_t>>& res, const std::vector<std::vector<std::uint64_t>>& fracmin_sketches, const size_t split_start, const size_t split_end, const double s, const double f);
+size_t splitting_average(const std::vector<size_t>& track_fill, const size_t split_start, const size_t split_end);
 
 // @brief Given every parameter needed, construct the HIBF completely. The bin size for every IBF is refined p+1 times. 
 // @param signatures : contains both the One Permutation Hash and the Fracmin Hash signatures
 // @param levels : parameters used for the LSH clustering
 // @param s : The Fraction determined to generate the Fracmin Sketch (used for estimating union size);
 // @param bins : the number of bins used
-// @param f : When splitting a singular sequence, determines how big a bin can be, i.e. |Bin| = t_max * f
+// @param fpr : The false positive rate aimed for. It will be used to compute fcorr.
+// @param h : The amount of hash functions that will be used. Used for computing fcorr.
 // @param p : The refinement parameter for the bin size. The IBF will be constructed p+1 times. If p == 0, it will just be (Union + Sum)/(2*bins*s)
 // @param max_level : Limits how many the HIBF is allowed to have.
 using IBF = std::vector<std::vector<size_t>>;
 template <typename Hasher>
 std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::pair<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
-                                            const double s, const double f, const size_t p, const size_t max_level);
+                                            const double s, const double fpr, const size_t h, const size_t p, const size_t max_level);
 #include "templates/fast_construct_generate_hibf.tpp"
 
 void write_header(std::ostream& out, const std::vector<std::vector<IBF>>& hibf_levels, 
