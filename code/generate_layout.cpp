@@ -40,7 +40,7 @@ int main(int argc, char* argv[]){
     // Generate One Permutation Hashes for each "sequence":
     std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> sigs = ophs_fmhs(dir_path, q, k, w, seed, s);
 
-    auto full_hibf = generate_hibf<standardHasher>(sigs, lvls, s, fpr, hash_funcs, refinements, max_levels);
+    auto full_hibf = generate_hibf<standardHasher>(sigs, lvls, s, fpr, hash_funcs, refinements);
     std::unordered_map<size_t, std::string>& seq_to_file = std::get<2>(sigs);
 
 

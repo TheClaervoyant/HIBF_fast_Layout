@@ -3,7 +3,7 @@
 template <typename Hasher>
 std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
-                                            const double s, const double fpr, const size_t h, const size_t p, const size_t max_level){
+                                            const double s, const double fpr, const size_t h, const size_t p){
 
     size_t max = std::numeric_limits<size_t>::max();
     const std::vector<std::vector<std::uint64_t>>& oph_sigs = std::get<0>(signatures);
@@ -123,7 +123,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
     max_bin_ids.push_back({max_bin_id});
     parents.push_back({{max, max}});
 
-    for(size_t lvl = 0; lvl + 1 < max_level; lvl++){
+    for(size_t lvl = 0;; lvl++){
         std::vector<IBF> next_lvl;
         std::vector<std::tuple<size_t,size_t,size_t>> next_ranges;
         std::vector<size_t> next_max_bin_ids;
