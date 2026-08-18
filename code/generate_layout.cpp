@@ -34,8 +34,8 @@ int main(int argc, char* argv[]){
     std::vector<std::pair<size_t, size_t>> lvls = parse_lvls(argv[7]);
     double s = std::stod(argv[8]);
     size_t refinements = std::stoul(argv[9]);
-    size_t technical_bins = std::stoul(argv[10]);
-    const std::uint8_t hash_funcs = static_cast<std::uint8_t>(std::stoul(argv[11]));
+    const std::uint8_t hash_funcs = static_cast<std::uint8_t>(std::stoul(argv[10]));
+    std::ofstream out_path(argv[11]);
         
     // Generate One Permutation Hashes for each "sequence":
     std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> sigs = ophs_fmhs(dir_path, q, k, w, seed, s);
@@ -44,13 +44,11 @@ int main(int argc, char* argv[]){
     std::unordered_map<size_t, std::string>& seq_to_file = std::get<2>(sigs);
 
 
-    std::filesystem::path root_dir = "../results/HIBF";
-    std::ofstream header_out(root_dir / "Test_Header.txt");
-    write_linkage(header_out, seq_to_file);
-    write_config(header_out, dir_path, q, w, fpr, hash_funcs, seq_to_file.size());
-    write_header(header_out, std::get<0>(full_hibf), std::get<3>(full_hibf), std::get<4>(full_hibf));
-    write_content(header_out, std::get<2>(full_hibf), seq_to_file);
-    header_out.close();
+    write_linkage(out_path, seq_to_file);
+    write_config(out_path, dir_path, q, w, fpr, hash_funcs, seq_to_file.size());
+    write_header(out_path, std::get<0>(full_hibf), std::get<3>(full_hibf), std::get<4>(full_hibf));
+    write_content(out_path, std::get<2>(full_hibf));
+    out_path.close();
 
     return 0;
 }
