@@ -44,46 +44,6 @@ std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std:
   return {std::move(res_oph), std::move(res_fracmin), std::move(seq_to_path)};
 }
 
-std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> ophs_fmhs(const std::filesystem::path& dirpath, const std::uint8_t q, const std::uint8_t k, const std::uint32_t w, const std::uint64_t seed, const double s, std::function<std::uint64_t(std::uint64_t)> hashFunc){
-  std::vector<std::vector<std::uint64_t>> res_oph;
-  std::vector<std::vector<std::uint64_t>> res_fmh;
-  std::unordered_map<size_t, std::string> seq_to_path;
-
-  seqan3::shape shape = seqan3::ungapped{q};
-  auto minimiser_view = seqan3::views::minimiser_hash(shape, seqan3::window_size{w}, seqan3::seed{seed});
-  size_t seq_id = 0;
-  
-  for(auto const& entry : std::filesystem::directory_iterator{dirpath}){
-    if(!entry.is_regular_file()) continue;
-
-    auto const& filepath = entry.path();
-    auto fin = seqan3::sequence_file_input{filepath};
-
-    for(auto& record : fin){
-      std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
-      std::vector<std::uint64_t> tmp_oph(std::pow(2,k), max);
-      std::vector<std::uint64_t> tmp_fracmin;
-      std::uint64_t thresh = static_cast<std::uint64_t>(static_cast<double>(max*s));
-      for(auto&& qgram : record.sequence() | minimiser_view){
-        std::uint64_t hash = hashFunc(qgram);
-
-        if(hash < thresh) tmp_fracmin.push_back(hash);
-
-        std::uint8_t index = hash & ((1ULL << k) -1);
-        std::uint64_t val = hash >> k; // remove the k bits, they'd just be a bias since every value in the bucket would ALWAYS have these bits same.
-
-        if(val < tmp_oph[index]) tmp_oph[index] = val;
-      }
-    std::sort(tmp_fracmin.begin(), tmp_fracmin.end());
-
-    seq_to_path[seq_id] = filepath.string();
-    seq_id += 1;
-    res_fmh.push_back(std::move(tmp_fracmin));
-    res_oph.push_back(std::move(tmp_oph)); 
-    }
-  }
-  return {std::move(res_oph), std::move(res_fmh), std::move(seq_to_path)};
-}
 
 size_t get_union_size(const std::vector<std::vector<std::uint64_t>>& sketches){
   std::unordered_set<std::uint64_t> elems;

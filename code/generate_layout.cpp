@@ -20,7 +20,7 @@ std::vector<std::pair<size_t,size_t>> parse_lvls(const std::string& s){
 }
 
 int main(int argc, char* argv[]){
-    if(argc != 12){
+    if(argc != 13){
         std::cerr << "Missing parameters: " << "Levels used for LSH + Fraction s for Fracmin. + Refinement count when constructing the HIBF + Max Levels of HIBF\n";
         return 1;
     }
@@ -36,9 +36,11 @@ int main(int argc, char* argv[]){
     size_t refinements = std::stoul(argv[9]);
     const std::uint8_t hash_funcs = static_cast<std::uint8_t>(std::stoul(argv[10]));
     std::ofstream out_path(argv[11]);
+    size_t threads = std::stoul(argv[12]);
         
     // Generate One Permutation Hashes for each "sequence":
-    std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> sigs = ophs_fmhs(dir_path, q, k, w, seed, s);
+    IntHasher hasher;
+    std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> sigs = ophs_fmhs(dir_path, q, k, w, seed, s, hasher, threads);
 
     auto full_hibf = generate_hibf<standardHasher>(sigs, lvls, s, fpr, hash_funcs, refinements);
     std::unordered_map<size_t, std::string>& seq_to_file = std::get<2>(sigs);
