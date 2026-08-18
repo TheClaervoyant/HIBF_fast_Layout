@@ -29,7 +29,7 @@ int main(int argc, char* argv[]){
     const std::uint8_t k = static_cast<std::uint8_t>(std::stoul(argv[2]));
     const std::uint8_t q = static_cast<std::uint8_t>(std::stoul(argv[3]));
     const std::uint32_t w = static_cast<std::uint64_t>(std::stoull(argv[4]));
-    const std::uint64_t seed = static_cast<std::uint64_t>(std::stoul(argv[5])) >> (64*2*k);
+    const std::uint64_t seed = static_cast<std::uint64_t>(std::stoull(argv[5])) & ((1ULL << 2*q) - 1);
     const double fpr = std::stod(argv[6]);
     std::vector<std::pair<size_t, size_t>> lvls = parse_lvls(argv[7]);
     double s = std::stod(argv[8]);
