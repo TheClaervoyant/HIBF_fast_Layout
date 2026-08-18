@@ -35,6 +35,67 @@ size_t splitting_average(const std::vector<size_t>& track_fill, const size_t spl
     return amount ? sum / amount : 0;
 }
 
+void write_linkage(std::ostream& out, const std::unordered_map<size_t, std::string>& seq_to_path){
+    out << "@CHOPPER_USER_BINS\n";
+    for(auto& [seq, path] : seq_to_path){
+        out << "@" << seq << " " << path << "\n";
+    }
+    out << "@CHOPPER_USER_BINS_END";
+}
+
+void write_config(std::ofstream& out,
+                  std::filesystem::path const& dir_path,
+                  std::uint8_t q,
+                  std::uint32_t w,
+                  double fpr,
+                  std::uint8_t hash_funcs,
+                  size_t user_bins){
+
+out << "@CHOPPER_CONFIG\n"
+        "@{\n"
+        "@    \"chopper_config\": {\n"
+        "@        \"version\": 2,\n"
+        "@        \"data_file\": {\n"
+    <<  "@            \"value0\": \"" << dir_path.string() << "\"\n"
+        "@        },\n"
+        "@        \"debug\": false, \n"
+        "@        \"sketch_directory\": {\n"
+        "@            \"value0\": \"\"\n"
+        "@        },\n"
+    <<  "@        \"k\": " << static_cast<unsigned>(q) << ",\n"
+    <<  "@        \"window_size\": " << w << ",\n"
+        "@        \"disable_sketch_output\": true,\n"
+        "@        \"precomputed_files\": false,\n"
+        "@        \"maximum_index_size\": 0,\n"
+        "@        \"number_of_partitions\": 1,\n"
+        "@        \"output_filename\": {\n"
+    <<  "@            \"value0\": \"" << dir_path.string() << "\"\n"
+        "@        },\n"
+        "@        \"determine_best_tmax\": false,\n"
+        "@        \"force_all_binnings\": false\n"
+        "@    }\n"
+        "@}\n"
+        "@CHOPPER_CONFIG_END\n"
+        "@HIBF_CONFIG\n"
+        "@{\n"
+        "@    \"hibf_config\": {\n"
+        "@        \"version\": 1,\n"
+    <<  "@        \"number_of_user_bins\":" <<  user_bins << ",\n"
+    <<  "@        \"number_of_hash_functions\": " << static_cast<unsigned>(hash_funcs) << ",\n"
+    <<  "@        \"maximum_fpr\": " <<fpr << ",\n"
+    <<  "@        \"relaxed_fpr\": " << fpr << ",\n"
+        "@        \"threads\": 1,\n"
+        "@        \"sketch_bits\": 12,\n"
+        "@        \"tmax\": 0,\n"
+        "@        \"alpha\": 1.2,\n"
+        "@        \"max_rearrangement_ratio\": 0.5,\n"
+        "@        \"disable_estimate_union\": false,\n"
+        "@        \"disable_rearrangement\": false\n"
+        "@    }\n"
+        "@}\n"
+        "@HIBF_CONFIG_END\n";
+}
+
 void write_header(std::ostream& out, const std::vector<std::vector<IBF>>& hibf_levels, const std::vector<std::vector<size_t>>& max_bin_ids, const std::vector<std::vector<std::pair<size_t,size_t>>>& parents){
     auto merge_bin_label = [](size_t level, size_t index, const std::vector<std::vector<std::pair<size_t,size_t>>>& parents){
         std::vector<size_t> chain;
@@ -57,22 +118,19 @@ void write_header(std::ostream& out, const std::vector<std::vector<IBF>>& hibf_l
         for(size_t ibf_idx = 0; ibf_idx < hibf_levels[level].size(); ibf_idx++){
             size_t const max_bin_id = max_bin_ids[level][ibf_idx];
 
-            if(level == 0) out << "#HIGH_LEVEL_IBF max_bin_id:" << max_bin_id << "\n";
+            if(level == 0) out << "#TOP_LEVEL_IBF fullest_technical_bin_idx:" << max_bin_id << "\n";
             else{
                 std::string const label = merge_bin_label(level, ibf_idx, parents);
-                out << "#MERGED_BIN_" << label << " max_bin_id:" << max_bin_id << "\n";
+                out << "#LOWER_LEVEL_IBF_" << label << " fullest_technical_bin_idx" << max_bin_id << "\n";
             }
         }
     }
 
-    out << "#FILES\tBIN_INDICES\tNUMBER_OF_BINS\n";
+    out << "#USER_BIN_IDX\tTECHNICAL_BIN_INDICES\tNUMBER_OF_TECHNICAL_BINS\n";
 }
 
-void write_content(std::ofstream& out, const std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>& seq_layout, const std::unordered_map<size_t, std::string>& seq_to_path){
+void write_content(std::ofstream& out, const std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>& seq_layout){
     for(auto const& [seq, entries] : seq_layout){
-        auto path_it = seq_to_path.find(seq);
-        if(path_it == seq_to_path.end()) continue; // Maybe throw? Shouldn't happen, though.
-
         std::string bin_indices;
         std::string number_of_bins;
 
@@ -82,6 +140,6 @@ void write_content(std::ofstream& out, const std::unordered_map<size_t, std::vec
             bin_indices += std::to_string(start);
             number_of_bins += std::to_string(count);
         }
-        out << path_it->second << "\t" << bin_indices << "\t" << number_of_bins << "\n";
+        out << seq << "\t" << bin_indices << "\t" << number_of_bins << "\n";
     }
 }

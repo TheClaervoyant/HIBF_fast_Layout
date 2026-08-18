@@ -97,7 +97,6 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
     auto get_sub_bins = [&](size_t N){
         if(N == 0) return size_t{0};
-        if(N <= 64) return N; // No need to make a fuss out of this minute stuff.
         double raw = std::sqrt(static_cast<double>(N));
         size_t rounded = static_cast<size_t>(std::ceil(raw/64.0))*64; // round to nearest multiple of 64
         if (rounded == 0) rounded = 64;

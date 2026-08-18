@@ -270,8 +270,10 @@ int main(int argc, char* argv[]){
     print_hibf(std::get<0>(full_hibf));
     std::filesystem::path root_dir = "../results/HIBF";
     std::ofstream header_out(root_dir / "Test_Header.txt");
+    write_linkage(header_out, seq_to_file);
+    write_config(header_out, "/test/path/", 20, 24, 0.01, 4, 1024);
     write_header(header_out, std::get<0>(full_hibf), std::get<3>(full_hibf), std::get<4>(full_hibf));
-    write_content(header_out, std::get<2>(full_hibf), seq_to_file);
+    write_content(header_out, std::get<2>(full_hibf));
     header_out.close();
 
     return 0;

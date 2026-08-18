@@ -128,10 +128,20 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
                                             const double s, const double fpr, const size_t h, const size_t p, const size_t max_level);
 #include "templates/fast_construct_generate_hibf.tpp"
 
+void write_linkage(std::ostream& out,
+                    const std::unordered_map<size_t, std::string>& seq_to_path);
+
+void write_config(std::ofstream& out,
+                  std::filesystem::path const& dir_path,
+                  std::uint8_t q,
+                  std::uint32_t w,
+                  double fpr,
+                  std::uint8_t hash_funcs,
+                  size_t user_bins);
+
 void write_header(std::ostream& out, const std::vector<std::vector<IBF>>& hibf_levels, 
                   const std::vector<std::vector<size_t>>& max_bin_ids, 
                   const std::vector<std::vector<std::pair<size_t,size_t>>>& parents);
 
 void write_content(std::ofstream& out, 
-                   const std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>& seq_layout, 
-                   const std::unordered_map<size_t, std::string>& seq_to_path);
+                   const std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>& seq_layout);
