@@ -31,13 +31,15 @@ std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std:
 // @param filepath : Path to the file containing the sequences to be hashed
 // @param q : the size of the Q-Grams applied to the given sequences
 // @param k : the Intervall the function is cut in (Used in One Permutation Hash).
+// @param w : The window size used for every sequence.
+// @param seed : The seed used for computing the windows.
 // @param s: The fraction used to compute the Fracmin Hash
 // @param hashFunc : the Hash Function to be used.
 //
 // @note every vector inside of the returned one has a size of 2^k (OPH).
 // @note the first set of vectors is the OPH, the other one is the Fracmin.
 std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>> ophs_fmhs(const std::filesystem::path& filepath,
-                                              const std::uint8_t q, const std::uint8_t k, const double s,
+                                              const std::uint8_t q, const std::uint8_t k, const std::uint32_t w, const std::uint64_t seed, const double s,
                                               std::function<std::uint64_t(std::uint64_t)> hashFunc = xxhash_wrap);
 
 // @brief Given a set of (sorted) Fracmin Sketches, compute the size of the union of those sketches,
