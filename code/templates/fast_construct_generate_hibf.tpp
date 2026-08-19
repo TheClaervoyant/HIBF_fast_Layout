@@ -27,7 +27,10 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
         size_t curr_t_max = (curr_lower + curr_upper)/(2*sub_bins*s);
         size_t old_t_max = 0;
 
-        for(size_t it = 0; it <= p; it){
+        curr_upper = curr_t_max * 2;
+        curr_lower = 0;
+
+        for(size_t it = 0; it <= p;){
             if(curr_t_max == old_t_max) break; //  reached convergence.
             res = all_seqs ? binning(labMaps, clusts, fracmin_sigs, s, sub_bins, curr_t_max, fcorrs) : binning_given_seqs(labMaps, clusts, fracmin_sigs, seqs, s, sub_bins, curr_t_max, fcorrs);
 
@@ -36,7 +39,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
                 curr_lower = curr_t_max;
                 if(curr_t_max == 0) break;
                 old_t_max = curr_t_max;
-                curr_t_max = (curr_lower + curr_upper)/(2*sub_bins*s);
+                curr_t_max = (curr_lower + curr_upper)/2;
                 continue;
             }
             if(it == p) break; // Last iteration done
@@ -61,7 +64,7 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
 
             if(curr_t_max == 0) break; // If t_max should get really small
             old_t_max = curr_t_max;
-            curr_t_max = (curr_lower + curr_upper)/(2*sub_bins*s);
+            curr_t_max = (curr_lower + curr_upper)/2;
             it += 1;
         }
         if(std::get<3>(res) && valid) return b_res;
