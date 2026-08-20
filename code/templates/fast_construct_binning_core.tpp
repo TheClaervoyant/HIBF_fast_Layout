@@ -50,6 +50,7 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
     // @param force :If true, insert the sequence even if the bin was full.
     // @return true if the element was entered in the bin, false if not (overshoot).
     auto try_insert_sequence = [&](size_t seq, size_t b, bool force){
+        if(b >= bins) return false;
         std::unordered_set<std::uint64_t>& sketch = bin_sketches[b];
         std::vector<std::uint64_t> new_elems;
 
@@ -521,7 +522,7 @@ std::tuple<std::vector<std::vector<size_t>>, std::tuple<size_t,size_t,size_t>, s
         if(res[a].empty()) return false;
         if(res[b].empty()) return true;
         else return res[a].front() < res[b].front();
-    });
+    });w
 
     std::vector<std::vector<size_t>> sorted_res(res.size());
     std::vector<size_t> sorted_trackfill(res.size());

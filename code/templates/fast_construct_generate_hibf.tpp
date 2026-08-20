@@ -1,9 +1,11 @@
-#include "../fast_construct_bin.h"
+#include "../fast_construct_bin.h"#
+#include <future>
+#include <thread>
 
 template <typename Hasher>
 std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<size_t,size_t,size_t>>>, std::unordered_map<size_t, std::vector<std::tuple<size_t,size_t,size_t>>>, std::vector<std::vector<size_t>>, std::vector<std::vector<std::pair<size_t,size_t>>>> generate_hibf(const std::tuple<std::vector<std::vector<std::uint64_t>>, std::vector<std::vector<std::uint64_t>>, std::unordered_map<size_t, std::string>>& signatures,
                                             const std::vector<std::pair<size_t,size_t>>& levels,
-                                            const double s, const double fpr, const size_t h, const size_t p){
+                                            const double s, const double fpr, const size_t h, const size_t p, const size_t threads){
 
     size_t max = std::numeric_limits<size_t>::max();
     const std::vector<std::vector<std::uint64_t>>& oph_sigs = std::get<0>(signatures);
@@ -30,18 +32,21 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
         curr_upper = curr_t_max * 2;
         curr_lower = 0;
 
+        bool upper_overflow = false;
+
         for(size_t it = 0; it <= p;){
-            if(curr_t_max == old_t_max) break; //  reached convergence.
             res = all_seqs ? binning(labMaps, clusts, fracmin_sigs, s, sub_bins, curr_t_max, fcorrs) : binning_given_seqs(labMaps, clusts, fracmin_sigs, seqs, s, sub_bins, curr_t_max, fcorrs);
 
             bool overflow = std::get<3>(res);
             if(overflow){
+                upper_overflow = (curr_t_max == curr_upper);
                 curr_lower = curr_t_max;
                 if(curr_t_max == 0) break;
                 old_t_max = curr_t_max;
                 curr_t_max = (curr_lower + curr_upper)/2;
                 continue;
             }
+            upper_overflow = false;
             if(it == p) break; // Last iteration done
 
             const auto& [split_start, split_bins, merge_start] = std::get<1>(res);
@@ -59,15 +64,18 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
             size_t split_avg = split_bin_amt ? splitting_average(trackfill, split_start, merge_start) : 0;
             size_t merge_avg = merge_bin_amt ? merge_average(trackfill, merge_start) : 0;
 
-            if(split_avg > merge_avg) curr_upper = curr_t_max;
-            else curr_lower = curr_t_max;
+            if (split_bin_amt == 0 || split_avg < merge_avg) {
+                curr_upper = curr_t_max;
+            } else {
+                curr_lower = curr_t_max;
+            }
 
             if(curr_t_max == 0) break; // If t_max should get really small
             old_t_max = curr_t_max;
             curr_t_max = (curr_lower + curr_upper)/2;
             it += 1;
         }
-        if(std::get<3>(res) && valid) return b_res;
+        if(valid) return b_res;
         return res;
     };
 
@@ -109,52 +117,93 @@ std::tuple<std::vector<std::vector<IBF>>, std::vector<std::vector<std::tuple<siz
     const size_t global_bins = get_sub_bins(fracmin_sigs.size());
     size_t union_size = get_union_size(fracmin_sigs);
     size_t sum_size = 0;
-    for(const std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
+    for (const std::vector<std::uint64_t>& sketch : fracmin_sigs) sum_size += sketch.size();
 
-    std::vector<std::vector<IBF>> hibf_levels; // We save every single level here.
-    std::vector<std::vector<std::tuple<size_t,size_t,size_t>>> ranges; // In order to reconstruct, we need to know the Merge ranges for every IBF
+    std::vector<std::vector<IBF>> hibf_levels;
+    std::vector<std::vector<std::tuple<size_t,size_t,size_t>>> ranges;
+    
+    auto free_level_contents = [](std::vector<IBF>& lvl_ibfs) {
+        for (IBF& ibf : lvl_ibfs) {
+            for (std::vector<size_t>& bin : ibf) {
+                std::vector<size_t>{}.swap(bin);
+            }
+        }
+    };
 
-    std::vector<size_t> dummy =  {0};
-
-    auto root = refine_and_bin(dummy, global_bins, union_size, sum_size, true); // Since refine_and_bin doesnt need a spefific vector when calling binning, this dummy will do the trick.
+    std::vector<size_t> dummy = {0};
+    auto root = refine_and_bin(dummy, global_bins, union_size, sum_size, true);
     hibf_levels.push_back({std::get<0>(root)});
     auto [split_start, split_bins, merge_start] = std::get<1>(root);
     ranges.push_back({std::get<1>(root)});
     record_bins(std::get<0>(root), split_start, merge_start, 0);
+    
     std::vector<size_t> trackfill = std::get<2>(root);
     size_t max_bin_id = trackfill.empty() ? 0 : std::distance(trackfill.begin(), std::max_element(trackfill.begin(), trackfill.end()));
     max_bin_ids.push_back({max_bin_id});
     parents.push_back({{max, max}});
 
-    for(size_t lvl = 0;; lvl++){
+    const size_t max_workers = std::max<size_t>(1, threads);
+
+    for (size_t lvl = 0;; lvl++) {
+        if (lvl >= 2) free_level_contents(hibf_levels[lvl - 2]);
+
+        std::vector<std::pair<size_t, size_t>> tasks;
+        for (size_t ibf_index = 0; ibf_index < hibf_levels[lvl].size(); ibf_index++) {
+            const IBF& ibf = hibf_levels[lvl][ibf_index];
+            auto [split_start, split_bins, merge_start] = ranges[lvl][ibf_index];
+            for (size_t b = merge_start; b < ibf.size(); b++) {
+                if (ibf[b].empty()) continue;
+                tasks.push_back({ibf_index, b});
+            }
+        }
+
+        if (tasks.empty()) break;
+
         std::vector<IBF> next_lvl;
         std::vector<std::tuple<size_t,size_t,size_t>> next_ranges;
         std::vector<size_t> next_max_bin_ids;
         std::vector<std::pair<size_t,size_t>> next_parents;
 
-        for(size_t ibf_index = 0; ibf_index < hibf_levels[lvl].size(); ibf_index++){
-            const IBF& ibf = hibf_levels[lvl][ibf_index];
-            auto [split_start, split_bins, merge_start] = ranges[lvl][ibf_index];
+        next_lvl.reserve(tasks.size());
+        next_ranges.reserve(tasks.size());
+        next_max_bin_ids.reserve(tasks.size());
+        next_parents.reserve(tasks.size());
 
-            for(size_t b = merge_start; b < ibf.size(); b++){
-                if(ibf[b].empty()) continue; // can't do stuff on an empty IBF.
+        for (size_t chunk_start = 0; chunk_start < tasks.size(); chunk_start += max_workers) {
+            size_t chunk_end = std::min(tasks.size(), chunk_start + max_workers);
+            std::vector<std::future<ChildResult>> futures;
+            futures.reserve(chunk_end - chunk_start);
 
-                const std::vector<size_t>& sub_seqs = ibf[b];
-                const auto& [sub_lower, sub_higher] = get_upper_lower(sub_seqs, global_bins);
+            for (size_t i = chunk_start; i < chunk_end; i++) {
+                size_t ibf_index = tasks[i].first;
+                size_t b = tasks[i].second;
+                const auto& sub_seqs = hibf_levels[lvl][ibf_index][b];
+                auto [sub_lower, sub_higher] = get_upper_lower(sub_seqs, global_bins);
 
-                auto child = refine_and_bin(sub_seqs, global_bins, sub_lower, sub_higher, false);
-                auto [split_start, split_bins, merge_start] = std::get<1>(child);
-                std::vector<size_t> trackfill = std::get<2>(child);
+                futures.push_back(
+                    std::async(std::launch::async, [&, sub_seqs, sub_lower, sub_higher]() -> ChildResult {
+                        return refine_and_bin(sub_seqs, global_bins, sub_lower, sub_higher, false);
+                    })
+                );
+            }
+
+            for (size_t i = chunk_start; i < chunk_end; i++) {
+                size_t ibf_index = tasks[i].first;
+                size_t b = tasks[i].second;
+                ChildResult child = futures[i - chunk_start].get();
+
+                auto [c_split_start, c_split_bins, c_merge_start] = std::get<1>(child);
+                const std::vector<size_t>& child_trackfill = std::get<2>(child);
+                size_t child_max_bin_id = child_trackfill.empty() ? 0 : std::distance(child_trackfill.begin(), std::max_element(child_trackfill.begin(), child_trackfill.end()));
+
                 next_lvl.push_back(std::move(std::get<0>(child)));
-                max_bin_id = trackfill.empty() ? 0 : std::distance(trackfill.begin(), std::max_element(trackfill.begin(), trackfill.end()));
-                next_max_bin_ids.push_back(max_bin_id);
+                next_max_bin_ids.push_back(child_max_bin_id);
                 next_ranges.push_back(std::get<1>(child));
                 next_parents.push_back({ibf_index, b});
-                record_bins(next_lvl.back(), split_start, merge_start, next_lvl.size() -1);
-
+                record_bins(next_lvl.back(), c_split_start, c_merge_start, next_lvl.size() - 1);
             }
         }
-        if(next_lvl.empty()) break;
+
         hibf_levels.push_back(std::move(next_lvl));
         ranges.push_back(std::move(next_ranges));
         max_bin_ids.push_back(std::move(next_max_bin_ids));
